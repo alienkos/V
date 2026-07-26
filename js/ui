@@ -1,0 +1,1823 @@
+import { AppStore } from './store.js';
+import { formatRupiah, playSfx, getTodayDate } from './utils.js';
+
+export let confirmResolve;
+export let promptResolve;
+
+export function showView(viewId) {
+    document.getElementById('view-login').classList.add('hidden');
+    document.getElementById('view-student').classList.add('hidden');
+    document.getElementById('view-admin').classList.add('hidden');
+    document.getElementById(viewId).classList.remove('hidden');
+}
+
+export function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+export function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+export function showPopup(title, message, iconClass = "fa-star", iconColor = "text-yellow-500", bgContainer = "bg-yellow-100") {
+    document.getElementById('popup-title').innerText = title;
+    document.getElementById('popup-message').innerText = message;
+    document.getElementById('popup-icon').className = `fa-solid ${iconClass} text-4xl ${iconColor}`;
+    document.getElementById('popup-icon-box').className = `w-20 h-20 rounded-full flex items-center justify-center mx-auto -mt-14 mb-4 border-4 border-white shadow-md ${bgContainer}`;
+    openModal('modal-popup');
+}
+
+export function showCustomConfirm(title, message) {
+    document.getElementById('confirm-title').innerText = title;
+    document.getElementById('confirm-message').innerText = message;
+    openModal('modal-confirm');
+    return new Promise((resolve) => {
+        confirmResolve = resolve;
+    });
+}
+
+export function handleConfirm(val) {
+    closeModal('modal-confirm');
+    if (confirmResolve) confirmResolve(val);
+}
+
+export function showCustomPrompt(title, message) {
+    document.getElementById('prompt-title').innerText = title;
+    document.getElementById('prompt-message').innerText = message;
+    document.getElementById('prompt-input').value = '';
+    openModal('modal-prompt');
+    return new Promise((resolve) => {
+        promptResolve = resolve;
+    });
+}
+
+export function handlePrompt(submit) {
+    closeModal('modal-prompt');
+    if (promptResolve) {
+        promptResolve(submit ? document.getElementById('prompt-input').value.trim() : null);
+    }
+}
+
+export function updateDynamicSchoolIdentity() {
+    document.getElementById('pub-app-title').innerText = AppStore.appSettings.school_name || "Bintang Kelas";
+    document.getElementById('pub-class-badge').innerText = `Karakter Hebat ${AppStore.appSettings.class_name || 'Kelas 5'}`;
+    document.getElementById('pub-school-name').innerText = AppStore.appSettings.school_name || "SDN 4 Rambutan";
+    document.getElementById('pub-app-version').innerText = AppStore.appSettings.app_version || "v2.6.0-Ocean";
+
+    document.getElementById('adm-display-teacher').innerText = `Ruang Kerja ${AppStore.appSettings.guru_name || 'Pak Guru'}`;
+    document.getElementById('adm-display-school').innerText = `${AppStore.appSettings.school_name || 'SDN 4 Rambutan'} - ${AppStore.appSettings.class_name || 'KELAS 5'}`;
+}
+
+export function getStudentAttendanceStats(studentId) {
+    let totalDays = AppStore.attendanceData.length;
+    let hadir = 0;
+    let sakit = 0;
+    let izin = 0;
+    let alfa = 0;
+
+    AppStore.attendanceData.forEach(day => {
+        const status = day.records[studentId] || 'H'; 
+        if (status === 'H') hadir++;
+        else if (status === 'S') sakit++;
+        else if (status === 'I') izin++;
+        else if (status === 'A') alfa++;
+    });
+
+    const totalMarked = hadir + sakit + izin + alfa;
+    const presencePercent = totalMarked > 0 ? Math.round((hadir / totalMarked) * 100) : 100;
+
+    return { totalDays, hadir, sakit, izin, alfa, percent: presencePercent, totalMarked };
+}
+
+export function getStudentRpgTitle(s) {
+    const att = getStudentAttendanceStats(s.id);
+    const xp = (s.points_good * 12) + (att.hadir * 4) - (s.points_bad * 18);
+    
+    let title = "Petualang Pemula 🎒";
+    let colorClass = "bg-slate-100 text-slate-800";
+    if (xp < 0) {
+        title = "Pendekar Tobat 🛡️";
+        colorClass = "bg-amber-100 text-amber-800";
+    } else if (xp >= 100 && xp < 300) {
+        title = "Ksatria Disiplin ⚔️";
+        colorClass = "bg-indigo-100 text-indigo-800";
+    } else if (xp >= 300 && xp < 600) {
+        title = "Pahlawan Teladan 🌟";
+        colorClass = "bg-sky-100 text-sky-800";
+    } else if (xp >= 600) {
+        title = "Bintang Legendaris 👑";
+        colorClass = "bg-yellow-150 text-yellow-800 font-extrabold animate-pulse border border-yellow-300";
+    }
+    return { title, colorClass, xpValue: xp };
+}
+
+export function getStudentSubjectInsights(studentId) {
+    const categories = ['PKN', 'BINA', 'MTK', 'IPAS', 'SENI', 'B.ING', 'KKA', 'LITERASI', 'LAINNYA'];
+    const categoryGrades = {};
+    
+    categories.forEach(cat => {
+        categoryGrades[cat] = { sum: 0, count: 0 };
+    });
+    
+    AppStore.tasks.forEach(t => {
+        const subm = AppStore.taskSubmissions.find(s => s.task_id === t.id && s.student_id === studentId);
+        if (subm && subm.score !== null && subm.score !== undefined && subm.score !== '') {
+            const cat = t.category || 'LAINNYA';
+            if (categoryGrades[cat]) {
+                categoryGrades[cat].sum += Number(subm.score);
+                categoryGrades[cat].count += 1;
+            }
+        }
+    });
+    
+    let bestSubject = null;
+    let worstSubject = null;
+    let bestAvg = -1;
+    let worstAvg = 101;
+    let hasGrades = false;
+    
+    categories.forEach(cat => {
+        const data = categoryGrades[cat];
+        if (data.count > 0) {
+            hasGrades = true;
+            const avg = data.sum / data.count;
+            if (avg > bestAvg) {
+                bestAvg = avg;
+                bestSubject = cat;
+            }
+            if (avg < worstAvg) {
+                worstAvg = avg;
+                worstSubject = cat;
+            }
+        }
+    });
+    
+    if (!hasGrades) return null;
+    
+    bestAvg = Math.round(bestAvg * 10) / 10;
+    worstAvg = Math.round(worstAvg * 10) / 10;
+    
+    if (bestSubject === worstSubject) { worstSubject = null; }
+    
+    return {
+        best: { name: bestSubject, avg: bestAvg },
+        worst: worstSubject ? { name: worstSubject, avg: worstAvg } : null
+    };
+}
+
+export function updateClassAnalytics() {
+    if (AppStore.attendanceData.length === 0) {
+        document.getElementById('class-monthly-presence-rate').innerText = "100% Bulan Ini";
+    } else {
+        let totalHadirCount = 0;
+        let totalRecordCount = 0;
+        
+        AppStore.attendanceData.forEach(day => {
+            Object.values(day.records).forEach(status => {
+                if (status === 'H') totalHadirCount++;
+                totalRecordCount++;
+            });
+        });
+        
+        const avgPercent = totalRecordCount > 0 ? Math.round((totalHadirCount / totalRecordCount) * 100) : 100;
+        document.getElementById('class-monthly-presence-rate').innerText = `${avgPercent}% Bulan Ini`;
+    }
+
+    const totalSubmCount = AppStore.taskSubmissions.length;
+    const completedSubmCount = AppStore.taskSubmissions.filter(s => s.status === 'Sudah Kumpul').length;
+    const tasksPercent = totalSubmCount > 0 ? Math.round((completedSubmCount / totalSubmCount) * 100) : 0;
+    document.getElementById('class-monthly-tasks-rate').innerText = `${tasksPercent}% Selesai`;
+}
+
+export function changeStudentSubTab(tabName) {
+    AppStore.currentStudentSubTab = tabName;
+    document.getElementById('student-tab-karakter').classList.add('hidden');
+    document.getElementById('student-tab-misi').classList.add('hidden');
+    document.getElementById('student-tab-tugas').classList.add('hidden');
+    document.getElementById('student-tab-kas').classList.add('hidden');
+
+    document.getElementById('btn-subtab-karakter').className = "flex-1 text-center py-2 px-1 text-[11px] font-black rounded-xl text-gray-400 hover:bg-gray-100 transition whitespace-nowrap";
+    document.getElementById('btn-subtab-misi').className = "flex-1 text-center py-2 px-1 text-[11px] font-black rounded-xl text-gray-400 hover:bg-gray-100 transition whitespace-nowrap";
+    document.getElementById('btn-subtab-tugas').className = "flex-1 text-center py-2 px-1 text-[11px] font-black rounded-xl text-gray-400 hover:bg-gray-100 transition whitespace-nowrap";
+    document.getElementById('btn-subtab-kas').className = "flex-1 text-center py-2 px-1 text-[11px] font-black rounded-xl text-gray-400 hover:bg-gray-100 transition whitespace-nowrap";
+
+    if (tabName === 'karakter') {
+        document.getElementById('student-tab-karakter').classList.remove('hidden');
+        document.getElementById('btn-subtab-karakter').className = "flex-1 text-center py-2 px-1 text-[11px] font-black rounded-xl bg-sky-100 text-sky-800 transition whitespace-nowrap";
+    } else if (tabName === 'misi') {
+        document.getElementById('student-tab-misi').classList.remove('hidden');
+        document.getElementById('btn-subtab-misi').className = "flex-1 text-center py-2 px-1 text-[11px] font-black rounded-xl bg-orange-100 text-orange-800 transition whitespace-nowrap";
+    } else if (tabName === 'tugas') {
+        document.getElementById('student-tab-tugas').classList.remove('hidden');
+        document.getElementById('btn-subtab-tugas').className = "flex-1 text-center py-2 px-1 text-[11px] font-black rounded-xl bg-blue-100 text-blue-800 transition whitespace-nowrap";
+    } else if (tabName === 'kas') {
+        document.getElementById('student-tab-kas').classList.remove('hidden');
+        document.getElementById('btn-subtab-kas').className = "flex-1 text-center py-2 px-1 text-[11px] font-black rounded-xl bg-amber-100 text-amber-800 transition whitespace-nowrap";
+    }
+}
+
+export function toggleOnboardingGuide() {
+    const content = document.getElementById('onboarding-content');
+    const arrow = document.getElementById('onboarding-arrow');
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        arrow.style.transform = 'rotate(180deg)';
+    } else {
+        content.classList.add('hidden');
+        arrow.style.transform = 'rotate(0deg)';
+    }
+}
+
+export function renderStudentDashboard() {
+    if (!AppStore.currentStudent) return;
+    
+    const rpg = getStudentRpgTitle(AppStore.currentStudent);
+    document.getElementById('display-std-name').innerText = AppStore.currentStudent.name;
+    document.getElementById('display-std-gender').innerText = AppStore.currentStudent.gender;
+    
+    const rpgTitleEl = document.getElementById('display-std-rpg-title');
+    rpgTitleEl.innerText = rpg.title;
+    rpgTitleEl.className = `text-[9px] font-extrabold px-2 py-0.5 rounded-full ${rpg.colorClass}`;
+
+    document.getElementById('student-good-pts').innerText = AppStore.currentStudent.points_good;
+    document.getElementById('student-bad-pts').innerText = AppStore.currentStudent.points_bad;
+
+    const aStats = getStudentAttendanceStats(AppStore.currentStudent.id);
+    document.getElementById('display-std-presence-pct').innerText = `${aStats.percent}%`;
+    document.getElementById('display-std-presence-detail').innerText = `Hadir: ${aStats.hadir} | Sakit: ${aStats.sakit} | Izin: ${aStats.izin} | Alfa: ${aStats.alfa}`;
+
+    const avatarImg = document.getElementById('student-avatar-img');
+    const avatarIcon = document.getElementById('student-avatar-icon');
+    if (AppStore.currentStudent.photo) {
+        avatarImg.src = AppStore.currentStudent.photo;
+        avatarImg.classList.remove('hidden');
+        avatarIcon.classList.add('hidden');
+    } else {
+        avatarImg.src = '';
+        avatarImg.classList.add('hidden');
+        avatarIcon.classList.remove('hidden');
+    }
+
+    const badgeBox = document.getElementById('badge-pujian');
+    if (AppStore.currentStudent.points_bad === 0) {
+        badgeBox.className = "text-center p-2 rounded-xl text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200 card-pop";
+        badgeBox.innerHTML = `<i class="fa-solid fa-cloud-sun mr-1"></i> Luar biasa! Karaktermu bersih tanpa poin pelanggaran hari ini.`;
+    } else {
+        badgeBox.className = "text-center p-2 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 card-pop";
+        badgeBox.innerHTML = `<i class="fa-solid fa-heart mr-1"></i> Poin kebaikan berikutnya akan otomatis digunakan melunasi sisa pelanggaran ini.`;
+    }
+
+    const msgContainer = document.getElementById('student-messages-alert');
+    const myMsgs = AppStore.studentMessages.filter(m => m.student_id === AppStore.currentStudent.id && !m.is_read);
+    if(myMsgs.length > 0) {
+        msgContainer.classList.remove('hidden');
+        msgContainer.innerHTML = myMsgs.map(m => `
+            <div class="bg-blue-100 border-2 border-blue-300 p-3 rounded-2xl flex items-center justify-between mb-2 shadow-sm card-pop">
+                <div>
+                    <h4 class="text-[10px] font-black text-blue-800 uppercase tracking-wider"><i class="fa-solid fa-envelope"></i> Pesan dari Guru</h4>
+                    <p class="text-xs text-blue-950 font-bold mt-1">${m.message}</p>
+                </div>
+                <button onclick="tandaiPesanDibaca('${m.id}')" class="bg-blue-600 hover:bg-blue-500 text-white font-black text-[9px] px-3 py-2 rounded-xl border-b-2 border-blue-800 btn-3d h-auto uppercase">BACA</button>
+            </div>
+        `).join('');
+    } else {
+        if (msgContainer) msgContainer.classList.add('hidden');
+        msgContainer.innerHTML = '';
+    }
+
+    const alertBox = document.getElementById('student-kas-alert');
+    const alertMsg = document.getElementById('student-kas-alert-msg');
+    const studentAlertAmount = AppStore.kasAlerts[AppStore.currentStudent.id];
+    
+    if (studentAlertAmount && Number(studentAlertAmount) > 0) {
+        alertBox.classList.remove('hidden');
+        alertMsg.innerText = `Kamu memiliki tagihan/tunggakan uang kas sebesar ${formatRupiah(studentAlertAmount)}. Yuk segera bayar ke bendahara kelas!`;
+    } else {
+        alertBox.classList.add('hidden');
+    }
+
+    const insights = getStudentSubjectInsights(AppStore.currentStudent.id);
+    const insightCard = document.getElementById('student-academic-insights-card');
+    const insightContent = document.getElementById('student-insights-content');
+    
+    if (insights) {
+        insightCard.classList.remove('hidden');
+        let insightHtml = '';
+        
+        if (insights.best) {
+            insightHtml += `
+                <div class="bg-sky-50 border border-sky-200 p-2.5 rounded-2xl">
+                    <span class="text-[9px] font-black bg-sky-200 text-sky-800 px-1.5 py-0.5 rounded uppercase inline-block mb-1">Mata Pelajaran Terbaik</span>
+                    <p class="text-xs font-black text-gray-800">${insights.best.name} (Rata-rata: ${insights.best.avg})</p>
+                    <p class="text-[10px] text-gray-600 mt-1 italic">"Keren sekali perjuanganmu! Pertahankan prestasi emas ini! 🌟"</p>
+                </div>
+            `;
+        }
+        if (insights.worst) {
+            insightHtml += `
+                <div class="bg-rose-50 border border-rose-200 p-2.5 rounded-2xl">
+                    <span class="text-[9px] font-black bg-rose-200 text-rose-800 px-1.5 py-0.5 rounded uppercase inline-block mb-1">Butuh Perhatian Lebih</span>
+                    <p class="text-xs font-black text-gray-800">${insights.worst.name} (Rata-rata: ${insights.worst.avg})</p>
+                    <p class="text-[10px] text-gray-600 mt-1 italic">"Jangan menyerah, sedikit latihan tambahan akan membuatmu menaklukkan materi ini! 💪"</p>
+                </div>
+            `;
+        }
+        insightContent.innerHTML = insightHtml;
+    } else {
+        insightCard.classList.add('hidden');
+    }
+
+    const stdLogsBox = document.getElementById('student-logs-list');
+    stdLogsBox.innerHTML = '';
+    const myLogs = AppStore.logs.filter(l => l.student_id === AppStore.currentStudent.id);
+    if (myLogs.length === 0) {
+        stdLogsBox.innerHTML = `<p class="text-xs text-gray-400 text-center py-4 font-bold">Belum ada riwayat catatan harian.</p>`;
+    } else {
+        myLogs.slice(0, 5).forEach(l => {
+            const isGood = l.type === "Kebaikan";
+            stdLogsBox.innerHTML += `
+                <div class="bg-white p-2.5 rounded-xl border border-gray-100 shadow-sm flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm ${isGood ? 'bg-sky-100 text-sky-600' : 'bg-amber-100 text-amber-600'}">
+                        <i class="fa-solid ${isGood ? 'fa-star' : 'fa-triangle-exclamation'}"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h5 class="font-extrabold text-xs">${l.description}</h5>
+                        <p class="text-[9px] text-gray-400">${l.timestamp}</p>
+                    </div>
+                    <span class="font-black text-xs ${isGood ? 'text-sky-600' : 'text-amber-600'}">${isGood ? '+' : '-'}${l.points}</span>
+                </div>
+            `;
+        });
+    }
+
+    const optBox = document.getElementById('student-restitusi-options');
+    optBox.innerHTML = '';
+    if (AppStore.currentStudent.points_bad === 0) {
+        optBox.innerHTML = `<div class="p-3 bg-sky-50 text-sky-800 text-center font-bold text-xs rounded-xl">Kamu tidak memerlukan pengajuan restitusi saat ini! 🥰</div>`;
+    } else {
+        AppStore.restitusiList.forEach(r => {
+            const isPending = AppStore.restitusiRequests.some(req => req.student_id === AppStore.currentStudent.id && req.restitusi_id === r.id && req.status === "Pending");
+            let actionBtn = isPending ? 
+                `<span class="bg-orange-100 text-orange-700 text-[10px] px-2 py-1.5 rounded-lg font-black uppercase border border-orange-200 flex items-center gap-1.5 shadow-inner cursor-not-allowed"><i class="fa-solid fa-hourglass-half animate-pulse"></i> Mengantre</span>` : 
+                `<button onclick="ajukanRestitusiSiswa('${r.id}')" class="bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black px-3 py-1 rounded-lg border-b-2 border-amber-700 uppercase">Ajukan</button>`;
+
+            optBox.innerHTML += `
+                <div class="p-3 bg-gray-50 border border-gray-150 rounded-xl flex items-center justify-between">
+                    <div class="flex-1 pr-2">
+                        <h5 class="text-xs font-black text-amber-950">${r.title}</h5>
+                        <p class="text-[9px] text-gray-500 mt-0.5">${r.description}</p>
+                        <span class="text-[9px] text-sky-600 font-bold"><i class="fa-solid fa-heart"></i> Mengurangi ${r.point_reduction} Poin</span>
+                    </div>
+                    <div>${actionBtn}</div>
+                </div>
+            `;
+        });
+    }
+
+    renderStudentMisiList();
+    renderStudentTugasList();
+
+    const kasBox = document.getElementById('student-kas-list');
+    kasBox.innerHTML = '';
+    
+    const totalKas = AppStore.kasTransactions.reduce((acc, curr) => curr.type === 'in' ? acc + Number(curr.amount) : acc - Number(curr.amount), 0);
+    kasBox.innerHTML += `
+        <div class="p-3 bg-sky-600 text-white rounded-xl text-center shadow-inner mb-3">
+            <span class="text-[9px] font-bold uppercase tracking-wider block mb-0.5">Jumlah Kas Kelas Saat Ini</span>
+            <h2 class="text-xl font-black">${formatRupiah(totalKas)}</h2>
+        </div>
+    `;
+
+    if (AppStore.kasTransactions.length === 0) {
+        kasBox.innerHTML += `<p class="text-xs text-gray-400 text-center py-4 font-bold">Belum ada transaksi kas tercatat.</p>`;
+    } else {
+        AppStore.kasTransactions.forEach(k => {
+            const isIn = k.type === 'in';
+            kasBox.innerHTML += `
+                <div class="p-2.5 bg-gray-50 border border-gray-150 rounded-xl flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs ${isIn ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}">
+                            <i class="fa-solid ${isIn ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-xs font-bold text-gray-800">${k.description}</h6>
+                            <p class="text-[8px] text-gray-400">${k.date}</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-black ${isIn ? 'text-sky-600' : 'text-rose-600'}">${isIn ? '+' : '-'}${formatRupiah(k.amount)}</span>
+                </div>
+            `;
+        });
+    }
+}
+
+export function renderStudentMisiList() {
+    const misiContainer = document.getElementById('student-misi-list');
+    misiContainer.innerHTML = '';
+
+    const allMisi = AppStore.tasks.filter(t => t.type === 'Misi');
+    if (allMisi.length === 0) {
+        misiContainer.innerHTML = `<p class="text-xs text-gray-400 text-center py-4 font-bold">Belum ada misi karakter aktif.</p>`;
+        document.getElementById('student-misi-progress').innerText = "0% Tuntas";
+        return;
+    }
+
+    const groupedMisi = {};
+    allMisi.forEach(m => {
+        const cat = m.category || 'MISI_KARAKTER';
+        if (!groupedMisi[cat]) groupedMisi[cat] = [];
+        groupedMisi[cat].push(m);
+    });
+
+    let completedMisiCount = 0;
+
+    Object.keys(groupedMisi).forEach(cat => {
+        misiContainer.innerHTML += `
+            <div class="text-[10px] font-black text-orange-600 uppercase tracking-widest mt-2 mb-1 border-b border-orange-100 pb-0.5">
+                📂 Kategori: ${cat}
+            </div>
+        `;
+
+        groupedMisi[cat].forEach(m => {
+            const subm = AppStore.taskSubmissions.find(s => s.task_id === m.id && s.student_id === AppStore.currentStudent.id);
+            const status = subm ? subm.status : 'Belum Kumpul';
+
+            if (status === 'Sudah Kumpul') completedMisiCount++;
+
+            let badgeColor = "bg-gray-100 text-gray-600 border border-gray-300";
+            let actionButtonHtml = '';
+
+            if (status === "Sudah Kumpul") {
+                badgeColor = "bg-green-100 text-green-800 border border-green-300";
+            } else if (status === "Menunggu Verifikasi") {
+                badgeColor = "bg-yellow-100 text-yellow-800 border border-yellow-300 animate-pulse";
+            } else if (status === "Remedial") {
+                badgeColor = "bg-red-100 text-red-800 border border-red-300";
+                actionButtonHtml = `<button onclick="laporTugasSelesai('${m.id}')" class="mt-2 w-full py-1.5 bg-yellow-400 text-amber-950 font-black rounded-lg text-[10px] btn-3d border-b-2 border-yellow-600">REMEDIAL SELESAI? LAPOR SEKARANG! 🚀</button>`;
+            } else {
+                actionButtonHtml = `<button onclick="laporTugasSelesai('${m.id}')" class="mt-2 w-full py-1.5 bg-orange-500 text-white font-black rounded-lg text-[10px] btn-3d border-b-2 border-orange-700">MULAI SELESAIKAN MISI! ⚔️</button>`;
+            }
+
+            if (m.is_locked) {
+                actionButtonHtml = `<span class="mt-2 flex items-center justify-center gap-1.5 w-full py-2 bg-red-50 text-red-600 font-black rounded-lg text-[10px] border border-red-200"><i class="fa-solid fa-lock"></i> Misi Terkunci</span>`;
+            }
+
+            misiContainer.innerHTML += `
+                <div class="p-3 bg-orange-50/50 border border-orange-100 rounded-2xl mb-2">
+                    <div class="flex justify-between items-start gap-2">
+                        <div>
+                            <h5 class="font-black text-xs text-gray-800">${m.title}</h5>
+                            <p class="text-[9px] text-gray-500 mt-0.5">${m.description}</p>
+                            <span class="text-[8px] text-gray-400 mt-1 inline-block">Batas: ${m.due_date}</span>
+                        </div>
+                        <span class="text-[9px] font-black px-2 py-1 rounded-xl uppercase shrink-0 ${badgeColor}">${status}</span>
+                    </div>
+                    ${actionButtonHtml}
+                </div>
+            `;
+        });
+    });
+
+    const percent = Math.round((completedMisiCount / allMisi.length) * 100);
+    document.getElementById('student-misi-progress').innerText = `${percent}% Tuntas`;
+}
+
+export function renderStudentTugasList() {
+    const tugasContainer = document.getElementById('student-tasks-list');
+    tugasContainer.innerHTML = '';
+
+    const allTugas = AppStore.tasks.filter(t => t.type === 'Tugas');
+    if (allTugas.length === 0) {
+        tugasContainer.innerHTML = `<p class="text-xs text-gray-400 text-center py-4 font-bold">Belum ada tugas akademik aktif.</p>`;
+        document.getElementById('student-tugas-progress').innerText = "0% Tuntas";
+        document.getElementById('display-std-academic-total-pct').innerText = "0%";
+        return;
+    }
+
+    const groupedTugas = {};
+    allTugas.forEach(t => {
+        const cat = t.category || 'LAINNYA';
+        if (!groupedTugas[cat]) groupedTugas[cat] = [];
+        groupedTugas[cat].push(t);
+    });
+
+    let completedTugasCount = 0;
+
+    Object.keys(groupedTugas).forEach(cat => {
+        tugasContainer.innerHTML += `
+            <div class="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-2 mb-1 border-b border-blue-100 pb-0.5">
+                📂 Mata Pelajaran: ${cat}
+            </div>
+        `;
+
+        groupedTugas[cat].forEach(t => {
+            const subm = AppStore.taskSubmissions.find(s => s.task_id === t.id && s.student_id === AppStore.currentStudent.id);
+            const status = subm ? subm.status : 'Belum Kumpul';
+            const currentScore = subm && subm.score !== null ? subm.score : '';
+
+            if (status === 'Sudah Kumpul') completedTugasCount++;
+
+            let badgeColor = "bg-gray-100 text-gray-600 border border-gray-300";
+            let inputScoreHtml = '';
+
+            if (status === "Sudah Kumpul") {
+                badgeColor = "bg-green-100 text-green-800 border border-green-300";
+                inputScoreHtml = `<span class="text-xs font-black text-green-700 bg-green-50 px-2 py-1.5 rounded-xl border border-green-200">Selesai (Nilai: ${currentScore})</span>`;
+            } else {
+                if (status === "Menunggu Verifikasi") {
+                    badgeColor = "bg-yellow-100 text-yellow-800 border border-yellow-300 animate-pulse";
+                } else if (status === "Remedial") {
+                    badgeColor = "bg-red-100 text-red-800 border border-red-300";
+                }
+                inputScoreHtml = `
+                    <div class="mt-2.5 flex items-center gap-1.5 bg-white p-2 border border-blue-200 rounded-xl">
+                        <span class="text-[9px] font-black text-gray-400 uppercase">Input Nilaimu:</span>
+                        <input type="number" id="std-score-input-${t.id}" value="${currentScore}" placeholder="Cth: 85" class="w-14 p-1 text-center text-xs font-black border border-gray-300 rounded focus:outline-none focus:border-blue-500">
+                        <button onclick="laporTugasDenganNilaiSiswa('${t.id}')" class="bg-blue-600 hover:bg-blue-700 text-white font-black text-[9px] px-2.5 py-1.5 rounded-lg border-b-2 border-blue-800 uppercase">Kumpul</button>
+                    </div>
+                `;
+            }
+
+            if (t.is_locked) {
+                inputScoreHtml = `<span class="mt-2.5 inline-flex items-center gap-1.5 text-xs font-black text-red-700 bg-red-50 px-3 py-1.5 rounded-xl border border-red-200"><i class="fa-solid fa-lock"></i> Terkunci (Nilai: ${currentScore !== '' ? currentScore : '-'})</span>`;
+            }
+
+            tugasContainer.innerHTML += `
+                <div class="p-3 bg-blue-50/50 border border-blue-100 rounded-2xl mb-2">
+                    <div class="flex justify-between items-start gap-2">
+                        <div class="flex-1">
+                            <h5 class="font-black text-xs text-gray-800">${t.title}</h5>
+                            <p class="text-[9px] text-gray-500 mt-0.5">${t.description}</p>
+                            <span class="text-[8px] text-gray-400 mt-1 inline-block">Batas: ${t.due_date}</span>
+                        </div>
+                        <span class="text-[9px] font-black px-2 py-1 rounded-xl uppercase shrink-0 ${badgeColor}">${status}</span>
+                    </div>
+                    <div class="mt-2 text-right">
+                        ${inputScoreHtml}
+                    </div>
+                </div>
+            `;
+        });
+    });
+
+    const percent = Math.round((completedTugasCount / allTugas.length) * 100);
+    document.getElementById('student-tugas-progress').innerText = `${percent}% Tuntas`;
+    document.getElementById('display-std-academic-total-pct').innerText = `${percent}%`;
+}
+
+export function renderDashboardStats() {
+    document.getElementById('pub-stat-total').innerText = AppStore.students.length;
+    document.getElementById('pub-stat-putra').innerText = AppStore.students.filter(s => s.gender === 'Putra').length;
+    document.getElementById('pub-stat-putri').innerText = AppStore.students.filter(s => s.gender === 'Putri').length;
+
+    const totalKas = AppStore.kasTransactions.reduce((acc, curr) => curr.type === 'in' ? acc + Number(curr.amount) : acc - Number(curr.amount), 0);
+    document.getElementById('pub-total-kas').innerText = formatRupiah(totalKas);
+
+    const kbBox = document.getElementById('leaderboard-kebaikan');
+    kbBox.innerHTML = '';
+    const topGood = [...AppStore.students].sort((a,b) => b.points_good - a.points_good).slice(0, 5);
+    topGood.forEach((s, i) => {
+        let photoHtml = s.photo ? `<img src="${s.photo}" class="w-6 h-6 rounded-full object-cover border border-sky-200">` : `<div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center border border-sky-200"><i class="fa-solid fa-user text-[10px] text-gray-400"></i></div>`;
+        kbBox.innerHTML += `
+            <div class="flex items-center justify-between text-xs p-2 bg-sky-50 border border-sky-100 rounded-xl">
+                <div class="flex items-center gap-2">
+                    <span class="w-5 h-5 bg-sky-600 text-white font-black rounded-full flex items-center justify-center text-[10px]">${i+1}</span>
+                    ${photoHtml}
+                    <span class="font-bold text-gray-800">${s.name}</span>
+                </div>
+                <span class="font-black text-sky-600"><i class="fa-solid fa-star"></i> ${s.points_good}</span>
+            </div>
+        `;
+    });
+
+    const plBox = document.getElementById('leaderboard-pelanggaran');
+    plBox.innerHTML = '';
+    const topBad = [...AppStore.students].filter(s => s.points_bad > 0).sort((a,b) => b.points_bad - a.points_bad).slice(0, 5);
+    if (topBad.length === 0) {
+        plBox.innerHTML = `<p class="text-center text-[10px] text-gray-400 py-2 font-bold">Semua siswa tertib tanpa poin pelanggaran! 🌈</p>`;
+    } else {
+        topBad.forEach((s, i) => {
+            let photoHtml = s.photo ? `<img src="${s.photo}" class="w-6 h-6 rounded-full object-cover border border-amber-200">` : `<div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center border border-amber-200"><i class="fa-solid fa-user text-[10px] text-gray-400"></i></div>`;
+            plBox.innerHTML += `
+                <div class="flex items-center justify-between text-xs p-2 bg-amber-50 border border-amber-100 rounded-xl">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 bg-amber-600 text-white font-black rounded-full flex items-center justify-center text-[10px]">${i+1}</span>
+                        ${photoHtml}
+                        <span class="font-bold text-gray-800">${s.name}</span>
+                    </div>
+                    <span class="font-black text-amber-600"><i class="fa-solid fa-triangle-exclamation"></i> ${s.points_bad}</span>
+                </div>
+            `;
+        });
+    }
+
+    const pendCount = AppStore.restitusiRequests.filter(req => req.status === "Pending").length;
+    const badge = document.getElementById('badge-verif-count');
+    if (badge) {
+        badge.innerText = pendCount;
+        badge.classList.toggle('hidden', pendCount === 0);
+    }
+}
+
+export function switchAdminTab(tabName) {
+    AppStore.activeAdminTab = tabName;
+    const container = document.getElementById('admin-panel-content');
+    container.innerHTML = '';
+
+    const btns = ['siswa', 'poin', 'restitusi', 'absen', 'kas', 'tugas', 'rekap_nilai', 'identitas', 'rapor'];
+    btns.forEach(b => {
+        const el = document.getElementById(`tab-btn-${b}`);
+        if (el) el.className = "p-2 bg-white border-2 border-sky-200 rounded-2xl flex flex-col items-center justify-center gap-1 shadow-sm transition active:scale-95";
+    });
+
+    const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+    if (activeBtn) {
+        activeBtn.className = "p-2 bg-sky-100 border-2 border-sky-400 rounded-2xl flex flex-col items-center justify-center gap-1 shadow-sm transition scale-105 font-black";
+    }
+
+    if (tabName === 'siswa') renderTabSiswa(container);
+    else if (tabName === 'poin') renderTabPoin(container);
+    else if (tabName === 'restitusi') renderTabRestitusi(container);
+    else if (tabName === 'absen') renderTabAbsen(container);
+    else if (tabName === 'kas') renderTabKas(container);
+    else if (tabName === 'tugas') renderTabTugas(container);
+    else if (tabName === 'rekap_nilai') renderTabRekapNilai(container);
+    else if (tabName === 'identitas') renderTabIdentitas(container);
+    else if (tabName === 'rapor') renderTabRapor(container);
+}
+
+export function renderTabSiswa(container) {
+    let html = `
+        <div class="flex justify-between items-center mb-3">
+            <h4 class="font-black text-xs text-sky-800 uppercase tracking-wider">Kelola Daftar Siswa</h4>
+            <button onclick="bukaFormTambahSiswa()" class="bg-sky-600 hover:bg-sky-500 text-white font-black text-[10px] px-2.5 py-1.5 rounded-lg btn-3d h-auto">Tambah Baru</button>
+        </div>
+        
+        <div id="form-siswa-box" class="hidden bg-sky-50/50 p-3 rounded-2xl border-2 border-sky-100 mb-3 space-y-3">
+            <input type="hidden" id="in-siswa-id">
+            <input type="hidden" id="in-siswa-photo-data">
+            
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-gray-100 rounded-full border-2 border-sky-200 flex items-center justify-center overflow-hidden shrink-0 relative">
+                    <img id="preview-photo" src="" class="w-full h-full object-cover hidden">
+                    <i id="preview-icon" class="fa-solid fa-camera text-sky-500 absolute"></i>
+                </div>
+                <div class="flex-1">
+                    <label class="text-[9px] font-bold text-sky-800 block mb-1">Pilih Gambar Profil</label>
+                    <input type="file" id="in-siswa-photo" accept="image/*" onchange="handlePhotoUpload(event)" class="w-full text-[10px] text-gray-650">
+                </div>
+            </div>
+
+            <input type="text" id="in-siswa-name" placeholder="Nama Lengkap Anak..." class="w-full p-2.5 text-xs bg-white border-2 border-sky-200 rounded-xl focus:outline-none focus:border-sky-500 text-gray-850 font-bold">
+            <select id="in-siswa-gender" class="w-full p-2.5 text-xs bg-white border-2 border-sky-200 rounded-xl focus:outline-none focus:border-sky-500 text-gray-850 font-bold">
+                <option value="Putra">Putra</option>
+                <option value="Putri">Putri</option>
+            </select>
+
+            <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-sky-200">
+                <div>
+                    <label class="text-[9px] font-bold text-sky-800 block mb-1">Edit Poin Kebaikan (Manual)</label>
+                    <input type="number" id="in-siswa-good" value="0" class="w-full p-2.5 text-xs bg-white border border-sky-300 rounded-xl focus:outline-none focus:border-sky-500 font-black text-gray-850">
+                </div>
+                <div>
+                    <label class="text-[9px] font-bold text-sky-800 block mb-1">Edit Poin Pelanggaran (Manual)</label>
+                    <input type="number" id="in-siswa-bad" value="0" class="w-full p-2.5 text-xs bg-white border border-sky-300 rounded-xl focus:outline-none focus:border-sky-500 font-black text-gray-850">
+                </div>
+            </div>
+
+            <button onclick="simpanDataSiswa()" class="w-full bg-sky-600 text-white font-black text-xs py-2.5 rounded-xl btn-3d border-b-4 border-sky-800 mt-2">Simpan Data Siswa</button>
+        </div>
+
+        <div class="space-y-2 max-h-60 overflow-y-auto">
+    `;
+    AppStore.students.forEach(s => {
+        let photoHtml = s.photo ? `<img src="${s.photo}" class="w-8 h-8 rounded-full object-cover border-2 border-sky-100">` : `<div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border-2 border-sky-100"><i class="fa-solid fa-user text-sky-400 text-[10px]"></i></div>`;
+        html += `
+            <div class="p-2.5 bg-white rounded-xl flex justify-between items-center border-2 border-sky-50 shadow-sm">
+                <div class="flex items-center gap-2">
+                    ${photoHtml}
+                    <div>
+                        <h5 class="font-black text-xs text-gray-800">${s.name}</h5>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <span class="text-[8px] bg-slate-100 text-slate-600 px-1 rounded uppercase font-black">${s.gender}</span>
+                            <span class="text-[9px] text-green-700 font-extrabold flex items-center gap-0.5"><i class="fa-solid fa-star"></i> ${s.points_good}</span>
+                            <span class="text-[9px] text-amber-700 font-extrabold flex items-center gap-0.5"><i class="fa-solid fa-triangle-exclamation"></i> ${s.points_bad}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-1 shrink-0">
+                    <button onclick="kirimPesanSiswa('${s.id}')" title="Kirim Pesan" class="w-7 h-7 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center hover:bg-orange-200 transition"><i class="fa-solid fa-envelope text-[10px]"></i></button>
+                    <button onclick="bukaFormEditSiswa('${s.id}')" title="Edit Profil/Poin" class="w-7 h-7 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center hover:bg-blue-200 transition"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                    <button onclick="hapusSiswa('${s.id}')" title="Hapus Siswa" class="w-7 h-7 bg-red-100 text-red-600 rounded-lg flex items-center justify-center hover:bg-red-200 transition"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                </div>
+            </div>
+        `;
+    });
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+export function renderTabPoin(container) {
+    let html = `
+        <div class="flex justify-between items-center mb-3">
+            <h4 class="font-black text-xs text-sky-800 uppercase tracking-wider">Input Poin Karakter</h4>
+            <div class="flex gap-1">
+                <button onclick="togglePresetKebaikanPanel()" class="bg-sky-600 text-white text-[9px] font-black px-2 py-1 rounded">Preset Kebaikan</button>
+                <button onclick="togglePresetPelanggaranPanel()" class="bg-amber-500 text-white text-[9px] font-black px-2 py-1 rounded">Preset Pelanggaran</button>
+            </div>
+        </div>
+
+        <div id="preset-kebaikan-crud-panel" class="hidden bg-sky-50/50 p-3 rounded-2xl border-2 border-sky-100 mb-3 space-y-3">
+            <h5 class="text-[10px] font-black text-sky-800 uppercase border-b border-sky-100 pb-1">Preset Tindakan Kebaikan (CRUD)</h5>
+            <div class="space-y-2">
+                <input type="hidden" id="in-good-preset-id">
+                <input type="text" id="in-good-preset-title" placeholder="Judul Kebaikan..." class="w-full p-2 bg-white border border-sky-200 rounded text-gray-850 font-bold text-xs">
+                <input type="number" id="in-good-preset-points" placeholder="Default Poin Kebaikan" class="w-full p-2 bg-white border border-sky-200 rounded text-gray-850 font-bold text-xs">
+                <div class="flex gap-2">
+                    <button onclick="simpanPresetKebaikan()" class="flex-1 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold py-1.5 rounded">Simpan Preset</button>
+                    <button onclick="batalEditGoodPreset()" class="bg-gray-400 text-white text-xs py-1.5 px-3 rounded">Batal</button>
+                </div>
+            </div>
+            <div class="space-y-1.5 max-h-32 overflow-y-auto pt-2 border-t border-sky-100">
+                ${AppStore.goodPresets.map(v => `
+                    <div class="p-1.5 bg-white rounded border border-sky-100 flex justify-between items-center text-xs">
+                        <span class="text-gray-700 font-bold">${v.title} (${v.default_points} Pts)</span>
+                        <div class="flex gap-1">
+                            <button onclick="editPresetKebaikan('${v.id}')" class="text-blue-500 p-1"><i class="fa-solid fa-pen text-[9px]"></i></button>
+                            <button onclick="hapusPresetKebaikan('${v.id}')" class="text-red-500 p-1"><i class="fa-solid fa-trash text-[9px]"></i></button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+
+        <div id="preset-crud-panel" class="hidden bg-amber-50/50 p-3 rounded-2xl border-2 border-amber-100 mb-3 space-y-3">
+            <h5 class="text-[10px] font-black text-amber-800 uppercase border-b border-amber-100 pb-1">Preset Judul Pelanggaran (CRUD)</h5>
+            <div class="space-y-2">
+                <input type="hidden" id="in-preset-id">
+                <input type="text" id="in-preset-title" placeholder="Judul Pelanggaran..." class="w-full p-2 bg-white border border-amber-200 rounded text-gray-850 font-bold text-xs">
+                <input type="number" id="in-preset-points" placeholder="Default Poin" class="w-full p-2 bg-white border border-amber-200 rounded text-gray-850 font-bold text-xs">
+                <div class="flex gap-2">
+                    <button onclick="simpanPresetPelanggaran()" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-1.5 rounded">Simpan Preset</button>
+                    <button onclick="batalEditPreset()" class="bg-gray-400 text-white text-xs py-1.5 px-3 rounded">Batal</button>
+                </div>
+            </div>
+            
+            <div class="space-y-1.5 max-h-32 overflow-y-auto pt-2 border-t border-amber-100">
+                ${AppStore.violationPresets.map(v => `
+                    <div class="p-1.5 bg-white rounded border border-amber-100 flex justify-between items-center text-xs">
+                        <span class="text-gray-700 font-bold">${v.title} (${v.default_points} Pts)</span>
+                        <div class="flex gap-1">
+                            <button onclick="editPresetPelanggaran('${v.id}')" class="text-blue-500 p-1"><i class="fa-solid fa-pen text-[9px]"></i></button>
+                            <button onclick="hapusPresetPelanggaran('${v.id}')" class="text-red-500 p-1"><i class="fa-solid fa-trash text-[9px]"></i></button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+
+        <div class="bg-sky-50/30 p-3 rounded-2xl border-2 border-sky-100 space-y-3">
+            <div class="flex items-center justify-between border-b border-sky-100 pb-2">
+                <span class="text-[10px] font-black text-sky-800 uppercase">Metode Pencatatan:</span>
+                <div class="flex gap-2">
+                    <label class="text-xs font-bold flex items-center gap-1 text-sky-900">
+                        <input type="radio" name="input_mode" value="single" checked onchange="togglePoinInputMode('single')"> Individu
+                    </label>
+                    <label class="text-xs font-bold flex items-center gap-1 text-sky-900">
+                        <input type="radio" name="input_mode" value="collective" onchange="togglePoinInputMode('collective')"> Kolektif
+                    </label>
+                </div>
+            </div>
+
+            <div id="poin-single-target" class="relative">
+                <label class="text-[9px] font-bold text-sky-800 block mb-1">Cari & Pilih Nama Siswa:</label>
+                <input type="text" id="in-poin-student-search" onkeyup="searchStudentInPoinForm()" placeholder="Ketik nama..." class="w-full p-2.5 text-xs bg-white border-2 border-sky-200 rounded-xl text-gray-850 font-bold focus:outline-none focus:border-sky-500" autocomplete="off">
+                <input type="hidden" id="in-poin-student">
+                <div id="poin-student-search-results" class="hidden absolute left-0 right-0 mt-1 max-h-36 overflow-y-auto bg-white border-2 border-sky-200 rounded-xl shadow-xl z-50 divide-y divide-gray-100"></div>
+            </div>
+
+            <div id="poin-collective-target" class="hidden space-y-2">
+                <div class="flex justify-between items-center">
+                    <label class="text-[9px] font-bold text-sky-800">Pilih Banyak Siswa (Ceklist):</label>
+                    <div class="flex gap-2">
+                        <button onclick="toggleSelectAllStudents(true)" class="text-[9px] font-bold text-blue-600">Semua</button>
+                        <span class="text-gray-300 text-[10px]">|</span>
+                        <button onclick="toggleSelectAllStudents(false)" class="text-[9px] font-bold text-gray-400">Kosongkan</button>
+                    </div>
+                </div>
+                <div class="max-h-36 overflow-y-auto border-2 border-sky-100 rounded-xl p-2 bg-white divide-y divide-sky-50">
+                    ${AppStore.students.map(s => `
+                        <label class="flex items-center justify-between p-1.5 cursor-pointer hover:bg-sky-50/50 text-xs text-gray-700 font-bold">
+                            <span>${s.name}</span>
+                            <input type="checkbox" name="collective_students" value="${s.id}" class="rounded bg-white border-sky-300 text-sky-600 focus:ring-sky-500">
+                        </label>
+                    `).join('')}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[9px] font-bold text-sky-800 block mb-1">Tipe Poin:</label>
+                    <select id="in-poin-type" onchange="onPoinTypeChange()" class="w-full p-2.5 bg-white border-2 border-sky-200 rounded-xl text-gray-850 text-xs font-bold">
+                        <option value="Kebaikan">🟢 Kebaikan</option>
+                        <option value="Pelanggaran">⚠️ Pelanggaran</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[9px] font-bold text-sky-800 block mb-1">Jumlah Poin:</label>
+                    <input type="number" id="in-poin-num" value="10" class="w-full p-2.5 bg-white border-2 border-sky-200 rounded-xl text-gray-850 text-xs font-black">
+                </div>
+            </div>
+
+            <div id="preset-selector-box">
+                <label class="text-[9px] font-bold text-sky-800 block mb-1" id="preset-label-title">Pilih Preset:</label>
+                <select id="in-poin-preset" onchange="applyPresetPoin()" class="w-full p-2.5 bg-white border-2 border-sky-200 rounded-xl text-gray-850 text-xs font-bold"></select>
+            </div>
+
+            <div>
+                <label class="text-[9px] font-bold text-sky-800 block mb-1">Keterangan / Aktivitas:</label>
+                <input type="text" id="in-poin-desc" placeholder="Contoh: Membantu piket..." class="w-full p-2.5 bg-white border-2 border-sky-200 rounded-xl text-gray-850 text-xs font-bold focus:outline-none focus:border-sky-500">
+            </div>
+
+            <button onclick="simpanPoinAdmin()" class="btn-3d w-full bg-yellow-400 text-amber-950 font-black text-xs rounded-xl border-b-4 border-yellow-600 shadow-md flex items-center justify-center">SIMPAN CATATAN POIN</button>
+        </div>
+
+        <h5 class="text-[10px] font-black text-sky-800 uppercase mt-4 mb-2">Riwayat Transaksi Poin</h5>
+        <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
+            ${AppStore.logs.slice(0, 15).map(l => {
+                const isGood = l.type === 'Kebaikan';
+                return `
+                    <div class="p-2 bg-white rounded-xl border-2 border-sky-50 flex justify-between items-center text-xs">
+                        <div class="truncate">
+                            <h6 class="font-bold text-gray-800 truncate">${l.student_name}</h6>
+                            <p class="text-[9px] text-gray-400 truncate">${l.description}</p>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <span class="font-black ${isGood ? 'text-sky-600' : 'text-amber-600'}">${isGood ? '+' : '-'}${l.points}</span>
+                            <button onclick="hapusLogPoin('${l.id}')" class="text-red-500 p-1"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    container.innerHTML = html;
+    onPoinTypeChange();
+}
+
+export function searchStudentInPoinForm() {
+    const query = document.getElementById('in-poin-student-search').value.toLowerCase().trim();
+    const resultsBox = document.getElementById('poin-student-search-results');
+    
+    if (query.length === 0) {
+        resultsBox.innerHTML = '';
+        resultsBox.classList.add('hidden');
+        return;
+    }
+
+    const matched = AppStore.students.filter(s => s.name.toLowerCase().includes(query));
+    resultsBox.innerHTML = '';
+
+    if (matched.length === 0) {
+        resultsBox.innerHTML = `<div class="p-2 text-xs text-gray-400 text-center">Siswa tidak ditemukan</div>`;
+    } else {
+        matched.forEach(s => {
+            const row = document.createElement('div');
+            row.className = "p-2 hover:bg-sky-50 text-xs font-bold text-gray-700 cursor-pointer transition";
+            row.innerText = s.name;
+            row.onclick = () => {
+                document.getElementById('in-poin-student-search').value = s.name;
+                document.getElementById('in-poin-student').value = s.id;
+                resultsBox.classList.add('hidden');
+            };
+            resultsBox.appendChild(row);
+        });
+    }
+    resultsBox.classList.remove('hidden');
+}
+
+export function togglePresetKebaikanPanel() { document.getElementById('preset-kebaikan-crud-panel').classList.toggle('hidden'); }
+export function togglePresetPelanggaranPanel() { document.getElementById('preset-crud-panel').classList.toggle('hidden'); }
+export function togglePoinInputMode(mode) {
+    document.getElementById('poin-single-target').classList.toggle('hidden', mode !== 'single');
+    document.getElementById('poin-collective-target').classList.toggle('hidden', mode !== 'collective');
+}
+export function toggleSelectAllStudents(check) {
+    const checkboxes = document.getElementsByName('collective_students');
+    checkboxes.forEach(cb => cb.checked = check);
+}
+
+export function onPoinTypeChange() {
+    const type = document.getElementById('in-poin-type').value;
+    const presetSelect = document.getElementById('in-poin-preset');
+    const label = document.getElementById('preset-label-title');
+    
+    presetSelect.innerHTML = '<option value="">-- Hubungkan dengan Preset (Opsional) --</option>';
+
+    if (type === 'Kebaikan') {
+        label.innerText = 'Pilih Preset Kebaikan:';
+        AppStore.goodPresets.forEach(p => {
+            presetSelect.innerHTML += `<option value="${p.id}">${p.title} (+${p.default_points})</option>`;
+        });
+    } else {
+        label.innerText = 'Pilih Preset Pelanggaran:';
+        AppStore.violationPresets.forEach(p => {
+            presetSelect.innerHTML += `<option value="${p.id}">${p.title} (-${p.default_points})</option>`;
+        });
+    }
+}
+
+export function applyPresetPoin() {
+    const type = document.getElementById('in-poin-type').value;
+    const presetId = document.getElementById('in-poin-preset').value;
+    if (!presetId) return;
+
+    let preset;
+    if (type === 'Kebaikan') {
+        preset = AppStore.goodPresets.find(p => p.id === presetId);
+    } else {
+        preset = AppStore.violationPresets.find(p => p.id === presetId);
+    }
+
+    if (preset) {
+        document.getElementById('in-poin-num').value = preset.default_points;
+        document.getElementById('in-poin-desc').value = preset.title;
+    }
+}
+
+export function editPresetKebaikan(id) {
+    const p = AppStore.goodPresets.find(v => v.id === id);
+    if (!p) return;
+    document.getElementById('in-good-preset-id').value = p.id;
+    document.getElementById('in-good-preset-title').value = p.title;
+    document.getElementById('in-good-preset-points').value = p.default_points;
+    document.getElementById('preset-kebaikan-crud-panel').classList.remove('hidden');
+}
+
+export function batalEditGoodPreset() {
+    document.getElementById('in-good-preset-id').value = '';
+    document.getElementById('in-good-preset-title').value = '';
+    document.getElementById('in-good-preset-points').value = '';
+}
+
+export function editPresetPelanggaran(id) {
+    const p = AppStore.violationPresets.find(v => v.id === id);
+    if (!p) return;
+    document.getElementById('in-preset-id').value = p.id;
+    document.getElementById('in-preset-title').value = p.title;
+    document.getElementById('in-preset-points').value = p.default_points;
+    document.getElementById('preset-crud-panel').classList.remove('hidden');
+}
+
+export function batalEditPreset() {
+    document.getElementById('in-preset-id').value = '';
+    document.getElementById('in-preset-title').value = '';
+    document.getElementById('in-preset-points').value = '';
+}
+
+export function renderTabRestitusi(container) {
+    let html = `
+        <div class="flex border-b border-gray-200 mb-4">
+            <button onclick="changeRestitusiSubTab('pending')" class="flex-1 py-2 text-center text-xs font-black rounded-t-xl ${AppStore.activeRestitusiSubTab === 'pending' ? 'bg-rose-100 text-rose-800 border-2 border-b-0 border-rose-200' : 'text-gray-400 hover:bg-gray-50'}">
+                📥 Antrean Verifikasi
+            </button>
+            <button onclick="changeRestitusiSubTab('preset')" class="flex-1 py-2 text-center text-xs font-black rounded-t-xl ${AppStore.activeRestitusiSubTab === 'preset' ? 'bg-rose-100 text-rose-800 border-2 border-b-0 border-rose-200' : 'text-gray-400 hover:bg-gray-50'}">
+                🛠️ Kelola Preset Restitusi (CRUD)
+            </button>
+        </div>
+    `;
+
+    if (AppStore.activeRestitusiSubTab === 'pending') {
+        const pendingReqs = AppStore.restitusiRequests.filter(r => r.status === 'Pending');
+        html += `
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="font-black text-xs text-rose-500 uppercase tracking-wider">Antrean Verifikasi Restitusi</h4>
+            </div>
+            <div class="space-y-2 mb-4">
+        `;
+
+        if (pendingReqs.length === 0) {
+            html += `<p class="text-center py-4 text-xs text-gray-400 font-bold">🎉 Tidak ada antrean pengajuan restitusi.</p>`;
+        } else {
+            pendingReqs.forEach(r => {
+                html += `
+                    <div class="p-3 bg-white rounded-xl border-2 border-rose-50 flex flex-col gap-2 shadow-sm">
+                        <div>
+                            <h5 class="text-xs font-black text-gray-800">${r.student_name}</h5>
+                            <p class="text-[10px] text-amber-600 font-bold mt-0.5"><i class="fa-solid fa-seedling"></i> Tugas: ${r.restitusi_title}</p>
+                            <p class="text-[10px] text-gray-500 italic mt-1">"Komitmen: ${r.note}"</p>
+                        </div>
+                        <div class="flex justify-end gap-1.5 border-t border-rose-50 pt-2 mt-1">
+                            <button onclick="verifikasiRestitusi('${r.id}', 'Rejected')" class="bg-red-100 text-red-600 font-black text-[9px] px-2.5 py-1 rounded">Tolak</button>
+                            <button onclick="verifikasiRestitusi('${r.id}', 'Approved')" class="bg-sky-600 text-white font-black text-[9px] px-2.5 py-1 rounded">✓ Setujui (Kurangi Pelanggaran)</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        html += `</div>`;
+    } else {
+        html += `
+            <div class="bg-rose-50/50 p-3 rounded-2xl border-2 border-rose-100 mb-3 space-y-3 shadow-sm">
+                <h5 class="text-[10px] font-black text-rose-800 uppercase border-b border-rose-100 pb-1">Tambah / Edit Preset Restitusi</h5>
+                <input type="hidden" id="in-restitusi-preset-id">
+                
+                <div>
+                    <label class="text-[9px] text-gray-500 font-bold block mb-1">Judul Aktivitas</label>
+                    <input type="text" id="in-restitusi-preset-title" placeholder="Contoh: Merapikan Buku..." class="w-full p-2 text-xs rounded-xl bg-white border border-rose-200 font-bold">
+                </div>
+                <div>
+                    <label class="text-[9px] text-gray-500 font-bold block mb-1">Rincian / Petunjuk</label>
+                    <input type="text" id="in-restitusi-preset-desc" placeholder="Contoh: Rapikan buku..." class="w-full p-2 text-xs rounded-xl bg-white border border-rose-200 font-bold">
+                </div>
+                <div>
+                    <label class="text-[9px] text-gray-500 font-bold block mb-1">Pengurangan Poin</label>
+                    <input type="number" id="in-restitusi-preset-points" placeholder="Contoh: 15" class="w-full p-2 text-xs rounded-xl bg-white border border-rose-200 font-bold">
+                </div>
+                
+                <div class="flex gap-2">
+                    <button onclick="simpanPresetRestitusi()" class="flex-1 bg-rose-600 text-white font-black text-xs py-2 rounded-xl btn-3d border-b-4 border-rose-800">Simpan Preset</button>
+                    <button onclick="batalEditPresetRestitusi()" class="bg-gray-400 text-white font-black text-xs py-2 px-3 rounded-xl">Batal</button>
+                </div>
+            </div>
+
+            <h5 class="text-[10px] font-black text-rose-800 uppercase mb-2">Daftar Preset Restitusi Aktif</h5>
+            <div class="space-y-2 max-h-56 overflow-y-auto">
+                ${AppStore.restitusiList.map(r => `
+                    <div class="p-2.5 bg-white rounded-xl border border-rose-100 flex justify-between items-center shadow-xs">
+                        <div>
+                            <h6 class="text-xs font-black text-gray-800">${r.title}</h6>
+                            <p class="text-[9px] text-gray-500">${r.description}</p>
+                            <span class="text-[9px] text-sky-600 font-bold"><i class="fa-solid fa-heart"></i> Mengurangi ${r.point_reduction} Poin</span>
+                        </div>
+                        <div class="flex gap-1 shrink-0 ml-2">
+                            <button onclick="editPresetRestitusi('${r.id}')" class="w-6 h-6 bg-blue-100 text-blue-600 rounded flex items-center justify-center"><i class="fa-solid fa-pen text-[9px]"></i></button>
+                            <button onclick="hapusPresetRestitusi('${r.id}')" class="w-6 h-6 bg-red-100 text-red-600 rounded flex items-center justify-center"><i class="fa-solid fa-trash text-[9px]"></i></button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+export function changeRestitusiSubTab(tab) {
+    AppStore.activeRestitusiSubTab = tab;
+    renderTabRestitusi(document.getElementById('admin-panel-content'));
+}
+
+export function editPresetRestitusi(id) {
+    const r = AppStore.restitusiList.find(x => x.id === id);
+    if (!r) return;
+    document.getElementById('in-restitusi-preset-id').value = r.id;
+    document.getElementById('in-restitusi-preset-title').value = r.title;
+    document.getElementById('in-restitusi-preset-desc').value = r.description;
+    document.getElementById('in-restitusi-preset-points').value = r.point_reduction;
+}
+
+export function batalEditPresetRestitusi() {
+    document.getElementById('in-restitusi-preset-id').value = '';
+    document.getElementById('in-restitusi-preset-title').value = '';
+    document.getElementById('in-restitusi-preset-desc').value = '';
+    document.getElementById('in-restitusi-preset-points').value = '';
+}
+
+export function renderTabAbsen(container) {
+    const today = getTodayDate();
+    let selectedDate = document.getElementById('absen-date-picker')?.value || today;
+    let todayAttendance = AppStore.attendanceData.find(a => a.date === selectedDate);
+    
+    if (!todayAttendance) {
+        let defaultRecord = {};
+        AppStore.students.forEach(s => { defaultRecord[s.id] = 'H'; }); 
+        todayAttendance = { date: selectedDate, records: defaultRecord };
+    }
+
+    const filledDates = AppStore.attendanceData.map(d => d.date);
+    const isCurrentlyFilled = filledDates.includes(selectedDate);
+
+    let html = `
+        <div class="p-3 bg-violet-50 rounded-2xl border-2 border-violet-150 space-y-3 mb-4">
+            <h5 class="font-black text-xs text-violet-800 uppercase flex items-center gap-1.5">
+                <i class="fa-solid fa-calendar-alt text-violet-600"></i> EDIT ABSENSI LALU ATAU HARI INI
+            </h5>
+            <div class="flex flex-col gap-2">
+                <div>
+                    <label class="text-[9px] font-black text-gray-500 uppercase tracking-wide block mb-1">Pilih Tanggal Presensi</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="date" id="absen-date-picker" value="${selectedDate}" onchange="changeAbsenView()" class="flex-1 p-2 text-xs rounded-xl bg-white border border-violet-250 text-gray-850 font-bold">
+                        <span class="text-xs font-black px-2 py-1.5 rounded-xl ${isCurrentlyFilled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                            ${isCurrentlyFilled ? '✓ Terisi' : '✗ Belum Terisi'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+    `;
+
+    AppStore.students.forEach(s => {
+        const status = todayAttendance.records[s.id] || 'H';
+        html += `
+            <div class="p-2 bg-white rounded-xl border border-violet-100 flex justify-between items-center text-xs">
+                <span class="font-bold text-gray-800 truncate max-w-[120px]">${s.name}</span>
+                <div class="flex gap-1 shrink-0">
+                    ${['H','S','I','A'].map(opt => `
+                        <button onclick="setAbsenStatus('${s.id}', '${opt}')" id="btn-abs-${s.id}-${opt}" class="w-7 h-7 text-xs font-black rounded-lg transition-all ${status === opt ? getAbsenBtnClass(opt) : 'bg-gray-100 text-gray-400'}">${opt}</button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    html += `
+        </div>
+        <button onclick="simpanAbsensi()" class="btn-3d w-full bg-violet-600 text-white font-black text-xs rounded-xl border-b-4 border-violet-800 mt-2">SIMPAN KEHADIRAN TANGGAL INI</button>
+    `;
+    container.innerHTML = html;
+}
+
+export function getAbsenBtnClass(opt) {
+    if (opt === 'H') return "bg-green-600 text-white";
+    if (opt === 'S') return "bg-blue-600 text-white";
+    if (opt === 'I') return "bg-yellow-500 text-white";
+    if (opt === 'A') return "bg-red-600 text-white animate-pulse";
+}
+
+export function changeAbsenView() { renderTabAbsen(document.getElementById('admin-panel-content')); }
+
+export function renderTabKas(container) {
+    const totalKas = AppStore.kasTransactions.reduce((acc, curr) => curr.type === 'in' ? acc + Number(curr.amount) : acc - Number(curr.amount), 0);
+    let studentOptionsHtml = AppStore.students.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+    let html = `
+        <div class="flex justify-between items-center mb-3">
+            <h4 class="font-black text-xs text-sky-800 uppercase tracking-wider">Buku Kas Kelas</h4>
+        </div>
+
+        <div class="bg-gradient-to-r from-sky-600 to-blue-600 rounded-2xl p-4 mb-3 flex justify-between items-center shadow-inner text-white border-2 border-sky-400">
+            <div>
+                <span class="text-[9px] text-white/85 font-bold uppercase tracking-wider block">Total Kas Kelas</span>
+                <h2 class="text-lg font-black">${formatRupiah(totalKas)}</h2>
+            </div>
+            <i class="fa-solid fa-wallet text-2xl text-sky-200"></i>
+        </div>
+
+        <div class="bg-red-50/50 p-3 rounded-2xl border-2 border-red-200 space-y-3 mb-3">
+            <h5 class="text-[10px] font-black text-red-800 uppercase border-b border-red-100 pb-1"><i class="fa-solid fa-bell"></i> Ingatkan Tunggakan Kas Kelas</h5>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[9px] text-gray-500 font-bold block mb-1">Pilih Siswa</label>
+                    <select id="kas-alert-student" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-red-200 text-gray-850 font-black">
+                        <option value="">-- Pilih Siswa --</option>
+                        ${studentOptionsHtml}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[9px] text-gray-500 font-bold block mb-1">Besar Tunggakan (Rp)</label>
+                    <input type="number" id="kas-alert-amount" placeholder="Cth: 15000" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-red-200 text-gray-850 font-black">
+                </div>
+            </div>
+            <button onclick="kirimPeringatanKas()" class="w-full bg-red-600 hover:bg-red-500 text-white font-black text-xs py-2 rounded-xl btn-3d border-b-4 border-red-800">Kirim Peringatan Berkedip Ke Portal Siswa</button>
+        </div>
+
+        <div class="bg-white p-3 rounded-2xl border-2 border-sky-100 space-y-3">
+            <h5 class="text-[10px] font-black text-sky-800 uppercase border-b border-sky-100 pb-1">Transaksi Kas Umum</h5>
+            <input type="hidden" id="kas-id">
+            
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[9px] text-gray-500 font-bold block mb-1">Tanggal</label>
+                    <input type="date" id="kas-date" value="${getTodayDate()}" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-sky-200 text-gray-850 font-black">
+                </div>
+                <div>
+                    <label class="text-[9px] text-gray-500 font-bold block mb-1">Jenis</label>
+                    <select id="kas-type" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-sky-200 text-gray-850 font-black">
+                        <option value="in">🟢 Pemasukan (+)</option>
+                        <option value="out">🔴 Pengeluaran (-)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="text-[9px] text-gray-500 font-bold block mb-1">Nominal (Rp)</label>
+                <input type="number" id="kas-amount" placeholder="Cth: 5000" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-sky-200 text-gray-850 font-black">
+            </div>
+
+            <div>
+                <label class="text-[9px] text-gray-500 font-bold block mb-1">Keterangan</label>
+                <input type="text" id="kas-desc" placeholder="Cth: Uang Kas Budi..." class="w-full p-2 text-xs rounded-xl bg-white border-2 border-sky-200 text-gray-850 font-black">
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="simpanKasAdmin()" class="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs py-2 rounded-xl btn-3d border-b-4 border-sky-800">Simpan Kas</button>
+                <button onclick="batalEditKas()" class="bg-gray-400 text-white font-black text-xs py-2 px-3 rounded-xl">Batal</button>
+            </div>
+        </div>
+    `;
+
+    html += `
+        <h5 class="text-[10px] font-black text-sky-800 uppercase mt-4 mb-2">Riwayat Transaksi Buku Kas</h5>
+        <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+    `;
+    
+    if (AppStore.kasTransactions.length === 0) {
+            html += `<p class="text-xs text-center py-4 font-bold text-gray-400">Belum ada catatan transaksi.</p>`;
+    } else {
+        AppStore.kasTransactions.forEach(k => {
+            const isIn = k.type === 'in';
+            html += `
+                <div class="p-2.5 bg-white rounded-xl border border-gray-200 flex justify-between items-center shadow-sm hover:border-sky-300 transition">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs shrink-0 ${isIn ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                            <i class="fa-solid ${isIn ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
+                        </div>
+                        <div>
+                            <h6 class="text-xs font-bold text-gray-800">${k.description}</h6>
+                            <p class="text-[8px] text-gray-400">${k.date}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span class="text-xs font-black ${isIn ? 'text-green-600' : 'text-red-600'}">${isIn ? '+' : '-'}${formatRupiah(k.amount)}</span>
+                        <button onclick="editKasAdmin('${k.id}')" class="text-blue-500 p-1 hover:bg-blue-50 rounded"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                        <button onclick="hapusKasAdmin('${k.id}')" class="text-red-500 p-1 hover:bg-red-50 rounded"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+export function editKasAdmin(id) {
+    const k = AppStore.kasTransactions.find(x => x.id === id);
+    if (!k) return;
+    document.getElementById('kas-id').value = k.id;
+    document.getElementById('kas-date').value = k.date;
+    document.getElementById('kas-type').value = k.type;
+    document.getElementById('kas-amount').value = k.amount;
+    document.getElementById('kas-desc').value = k.description;
+}
+
+export function batalEditKas() {
+    document.getElementById('kas-id').value = '';
+    document.getElementById('kas-amount').value = '';
+    document.getElementById('kas-desc').value = '';
+}
+
+export function isTaskFullyCompleted(taskId) {
+    const subs = AppStore.taskSubmissions.filter(s => s.task_id === taskId);
+    if (subs.length === 0) return false;
+    return subs.every(s => s.status === 'Sudah Kumpul');
+}
+
+export function renderTabTugas(container) {
+    const sortedTasks = [...AppStore.tasks].sort((a, b) => {
+        const compA = isTaskFullyCompleted(a.id);
+        const compB = isTaskFullyCompleted(b.id);
+        if (compA && !compB) return 1;
+        if (!compA && compB) return -1;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+
+    const filteredTasks = sortedTasks.filter(t => {
+        if (AppStore.activeTaskTabFilter !== 'Semua' && t.type !== AppStore.activeTaskTabFilter) return false;
+        if (AppStore.activeTaskCategoryFilter !== 'Semua' && t.category !== AppStore.activeTaskCategoryFilter) return false;
+        return true;
+    });
+
+    let html = `
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-gray-100 pb-3 mb-4">
+            <div>
+                <h4 class="font-black text-md text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-laptop-code text-blue-600 text-lg"></i>
+                    Ruang Pembelajaran Digital
+                </h4>
+                <p class="text-[10px] text-gray-500 font-bold mt-0.5">Kelola, tinjau, dan input nilai tugas secara cepat & tertib.</p>
+            </div>
+            <button onclick="bukaFormTambahTugas()" class="w-full md:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-blue-100 flex items-center justify-center gap-2 transition active:scale-95 h-11">
+                <i class="fa-solid fa-circle-plus"></i> Buat Tugas & Misi Baru
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            
+            <div id="form-tugas-box" class="hidden lg:block lg:col-span-5 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 p-4 rounded-3xl border-2 border-blue-100/80 space-y-3 shadow-sm">
+                <div class="flex items-center justify-between border-b border-blue-100 pb-2">
+                    <h5 class="text-xs font-black text-blue-900 uppercase flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-signature text-blue-600"></i> Form Parameter Pembelajaran
+                    </h5>
+                    <button onclick="bukaFormTambahTugas()" class="lg:hidden text-gray-400 hover:text-red-500"><i class="fa-solid fa-circle-xmark text-lg"></i></button>
+                </div>
+                <input type="hidden" id="in-tugas-id">
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[9px] font-black text-gray-500 block mb-1 uppercase tracking-wider">Tipe Aktivitas:</label>
+                        <div class="relative">
+                            <span class="absolute left-2.5 top-3 text-xs text-gray-400"><i class="fa-solid fa-bookmark"></i></span>
+                            <select id="in-tugas-type" class="w-full pl-8 pr-2 py-2 text-xs rounded-xl bg-white border-2 border-blue-100 text-gray-800 font-bold focus:outline-none focus:border-blue-500">
+                                <option value="Tugas">📝 Tugas Akademik</option>
+                                <option value="Misi">⚔️ Misi Karakter (RPG)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-black text-gray-500 block mb-1 uppercase tracking-wider">Mata Pelajaran:</label>
+                        <div class="relative">
+                            <span class="absolute left-2.5 top-3 text-xs text-gray-400"><i class="fa-solid fa-folder-open"></i></span>
+                            <select id="in-tugas-category" class="w-full pl-8 pr-2 py-2 text-xs rounded-xl bg-white border-2 border-blue-100 text-gray-800 font-bold focus:outline-none focus:border-blue-500">
+                                <option value="PKN">PKN</option>
+                                <option value="BINA">BINA</option>
+                                <option value="MTK">MTK</option>
+                                <option value="IPAS">IPAS</option>
+                                <option value="SENI">SENI</option>
+                                <option value="B.ING">B.ING</option>
+                                <option value="KKA">KKA</option>
+                                <option value="LITERASI">LITERASI</option>
+                                <option value="LAINNYA">LAINNYA</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[9px] font-black text-gray-500 block mb-1 uppercase tracking-wider">Judul Pembelajaran:</label>
+                    <input type="text" id="in-tugas-title" placeholder="Cth: Perkalian Pecahan atau Piket Bersih..." class="w-full p-2.5 text-xs bg-white border-2 border-blue-100 rounded-xl text-gray-800 font-extrabold focus:outline-none focus:border-blue-500 shadow-sm">
+                </div>
+
+                <div>
+                    <label class="text-[9px] font-black text-gray-500 block mb-1 uppercase tracking-wider">Rincian Instruksi / Catatan:</label>
+                    <textarea id="in-tugas-desc" placeholder="Tuliskan petunjuk pengerjaan bagi siswa..." class="w-full p-2.5 text-xs bg-white border-2 border-blue-100 rounded-xl text-gray-800 font-semibold focus:outline-none focus:border-blue-500 shadow-sm h-16 resize-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="text-[9px] font-black text-gray-500 block mb-1 uppercase tracking-wider">Batas Waktu Pengumpulan:</label>
+                    <input type="date" id="in-tugas-date" value="${getTodayDate()}" class="w-full p-2.5 text-xs bg-white border-2 border-blue-100 rounded-xl text-gray-750 font-black focus:outline-none focus:border-blue-500 shadow-sm">
+                </div>
+                
+                <div class="flex gap-2 pt-1">
+                    <button onclick="simpanDataTugas()" class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs py-3 rounded-xl shadow-md border-b-4 border-indigo-800 active:translate-y-1 active:border-b-0 transition-all flex items-center justify-center gap-1.5"><i class="fa-solid fa-cloud-arrow-up"></i> Simpan & Bagikan</button>
+                    <button onclick="batalEditTugasForm()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-xs px-4 py-3 rounded-xl">Batal</button>
+                </div>
+            </div>
+
+            <div id="tugas-list-area" class="lg:col-span-12 space-y-3 transition-all duration-300">
+                
+                <div class="flex bg-slate-100 p-1 rounded-xl gap-1 items-center flex-wrap md:flex-nowrap">
+                    <button onclick="filterTaskTab('Semua')" class="flex-1 py-2 text-center text-xs font-black rounded-lg flex items-center justify-center gap-1.5 transition ${AppStore.activeTaskTabFilter === 'Semua' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+                        🌐 Semua
+                    </button>
+                    <button onclick="filterTaskTab('Tugas')" class="flex-1 py-2 text-center text-xs font-black rounded-lg flex items-center justify-center gap-1.5 transition ${AppStore.activeTaskTabFilter === 'Tugas' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+                        📝 Akademis
+                    </button>
+                    <button onclick="filterTaskTab('Misi')" class="flex-1 py-2 text-center text-xs font-black rounded-lg flex items-center justify-center gap-1.5 transition ${AppStore.activeTaskTabFilter === 'Misi' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+                        ⚔️ Misi RPG
+                    </button>
+                    <div class="w-full md:w-auto mt-1 md:mt-0 md:ml-1 px-1">
+                        <select id="tugas-category-filter" onchange="filterTaskCategory(this.value)" class="w-full md:w-32 p-1.5 text-[10px] font-black rounded-lg border-2 border-slate-200 text-slate-700 focus:outline-none">
+                            <option value="Semua" ${AppStore.activeTaskCategoryFilter === 'Semua' ? 'selected' : ''}>Semua Kategori</option>
+                            <option value="PKN" ${AppStore.activeTaskCategoryFilter === 'PKN' ? 'selected' : ''}>PKN</option>
+                            <option value="BINA" ${AppStore.activeTaskCategoryFilter === 'BINA' ? 'selected' : ''}>BINA</option>
+                            <option value="MTK" ${AppStore.activeTaskCategoryFilter === 'MTK' ? 'selected' : ''}>MTK</option>
+                            <option value="IPAS" ${AppStore.activeTaskCategoryFilter === 'IPAS' ? 'selected' : ''}>IPAS</option>
+                            <option value="SENI" ${AppStore.activeTaskCategoryFilter === 'SENI' ? 'selected' : ''}>SENI</option>
+                            <option value="B.ING" ${AppStore.activeTaskCategoryFilter === 'B.ING' ? 'selected' : ''}>B.ING</option>
+                            <option value="KKA" ${AppStore.activeTaskCategoryFilter === 'KKA' ? 'selected' : ''}>KKA</option>
+                            <option value="LITERASI" ${AppStore.activeTaskCategoryFilter === 'LITERASI' ? 'selected' : ''}>LITERASI</option>
+                            <option value="LAINNYA" ${AppStore.activeTaskCategoryFilter === 'LAINNYA' ? 'selected' : ''}>LAINNYA</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+    `;
+
+    if (filteredTasks.length === 0) {
+        html += `
+            <div class="text-center py-8 bg-white border-2 border-dashed border-gray-200 rounded-3xl p-5">
+                <img src="https://placehold.co/100x100/eff6ff/1e40af?text=📋" class="mx-auto rounded-full mb-3" alt="Empty">
+                <p class="text-xs text-gray-400 font-bold">Belum ada tugas atau misi terdaftar pada kategori/filter ini.</p>
+            </div>
+        `;
+    } else {
+        filteredTasks.forEach(t => {
+            const taskSubms = AppStore.taskSubmissions.filter(s => s.task_id === t.id);
+            const totalAssigned = taskSubms.length;
+            const completed = taskSubms.filter(s => s.status === 'Sudah Kumpul').length;
+            const completionRate = totalAssigned > 0 ? Math.round((completed / totalAssigned) * 100) : 0;
+            
+            const isAllFinished = isTaskFullyCompleted(t.id);
+            const isExpanded = AppStore.expandedTaskId === t.id;
+
+            let totalScoreVal = 0;
+            let gradedCount = 0;
+            taskSubms.forEach(sub => {
+                if (sub.score !== null && sub.score !== undefined && sub.score !== '') {
+                    totalScoreVal += Number(sub.score);
+                    gradedCount++;
+                }
+            });
+            const averageScoreVal = gradedCount > 0 ? Math.round((totalScoreVal / gradedCount) * 10) / 10 : 0;
+
+            const sortedStudents = [...AppStore.students].sort((a, b) => {
+                const subA = taskSubms.find(sub => sub.student_id === a.id);
+                const subB = taskSubms.find(sub => sub.student_id === b.id);
+                const statusA = subA ? subA.status : 'Belum Kumpul';
+                const statusB = subB ? subB.status : 'Belum Kumpul';
+                const isUnfilledA = statusA !== 'Sudah Kumpul';
+                const isUnfilledB = statusB !== 'Sudah Kumpul';
+                if (isUnfilledA && !isUnfilledB) return -1;
+                if (!isUnfilledA && isUnfilledB) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            const borderGradient = t.type === 'Misi' ? 'border-amber-100 hover:border-amber-300' : 'border-blue-100 hover:border-blue-300';
+            const iconHeader = t.type === 'Misi' ? 'fa-shield-halved text-amber-500' : 'fa-graduation-cap text-blue-500';
+
+            html += `
+                <div class="p-4 bg-white border-2 ${borderGradient} rounded-3xl shadow-sm hover:shadow-md transition-all duration-200">
+                    
+                    <div class="flex justify-between items-start gap-3 pb-3 border-b border-gray-100 cursor-pointer" onclick="toggleTaskGrading('${t.id}')">
+                        <div class="flex items-start gap-2.5">
+                            <div class="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-sm shrink-0">
+                                <i class="fa-solid ${iconHeader}"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex gap-1.5 items-center mb-1 flex-wrap">
+                                    <span class="text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${t.type === 'Misi' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}">${t.type}</span>
+                                    <span class="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">${t.category}</span>
+                                    ${isAllFinished ? '<span class="text-[8px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full font-black uppercase">TUNTAS</span>' : ''}
+                                </div>
+                                <h5 class="font-black text-xs text-slate-800 truncate" title="${t.title}">${t.title}</h5>
+                                <p class="text-[9px] text-gray-500 font-bold mt-0.5"><i class="fa-regular fa-clock mr-0.5"></i> Target: ${t.due_date}</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-1 items-center shrink-0">
+                            <button onclick="event.stopPropagation(); toggleLockTask('${t.id}')" class="text-${t.is_locked ? 'red' : 'green'}-500 hover:bg-slate-100 p-2 rounded-xl transition" title="${t.is_locked ? 'Buka Kunci' : 'Kunci Tugas'}"><i class="fa-solid fa-${t.is_locked ? 'lock' : 'lock-open'} text-xs"></i></button>
+                            ${t.is_locked ? '' : `<button onclick="event.stopPropagation(); bukaFormEditTugas('${t.id}')" class="text-blue-500 hover:bg-blue-50 p-2 rounded-xl transition"><i class="fa-solid fa-pen text-xs"></i></button>`}
+                            ${t.is_locked ? '' : `<button onclick="event.stopPropagation(); hapusTugas('${t.id}')" class="text-red-500 hover:bg-red-50 p-2 rounded-xl transition"><i class="fa-solid fa-trash text-xs"></i></button>`}
+                            <span class="w-6 h-6 flex items-center justify-center text-slate-400 bg-slate-50 rounded-lg ml-1"><i class="fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-[10px]"></i></span>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="flex justify-between text-[9px] font-black text-gray-500 uppercase mb-1">
+                            <span>Kemajuan Belajar: ${completionRate}%</span>
+                            <span>${completed}/${totalAssigned} Siswa Kumpul</span>
+                        </div>
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                            <div class="h-full transition-all duration-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] ${t.type === 'Misi' ? 'bg-gradient-to-r from-amber-400 to-yellow-500' : 'bg-gradient-to-r from-blue-500 to-indigo-600'}" style="width: ${completionRate}%"></div>
+                        </div>
+                    </div>
+
+                    ${isExpanded ? `
+                        <div class="mt-4 space-y-3 bg-slate-50 p-3 rounded-2xl border border-slate-150 card-pop">
+                            <div class="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span class="text-[9px] font-black text-slate-500 uppercase flex items-center gap-1.5"><i class="fa-solid fa-clipboard-check text-blue-600"></i> Nilai & Verifikasi Siswa:</span>
+                                ${t.is_locked ? '<span class="text-[9px] font-black text-red-600 uppercase bg-red-50 px-2 py-1 rounded border border-red-200"><i class="fa-solid fa-lock"></i> Pengeditan Dikunci</span>' : `<button onclick="markAllTaskSubmissionsAsDone('${t.id}')" class="bg-sky-600 hover:bg-sky-500 text-white font-black text-[9px] px-2.5 py-1 rounded-lg border-b-2 border-sky-800 transition active:scale-95 flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> Semua Lulus</button>`}
+                            </div>
+
+                            <div class="space-y-1.5 max-h-56 overflow-y-auto divide-y divide-gray-100">
+                                ${sortedStudents.map(s => {
+                                    const subm = taskSubms.find(sub => sub.student_id === s.id);
+                                    const currentStatus = subm ? subm.status : 'Belum Kumpul';
+                                    const currentScore = (subm && subm.score !== null && subm.score !== undefined) ? subm.score : '';
+                                    
+                                    let selectColor = "bg-white text-gray-800 border-gray-200";
+                                    if (currentStatus === 'Menunggu Verifikasi') selectColor = "bg-yellow-100 text-yellow-800 border-yellow-300 animate-pulse font-black shadow-inner";
+                                    if (currentStatus === 'Sudah Kumpul') selectColor = "bg-green-100 text-green-800 border-green-300 font-bold";
+                                    if (currentStatus === 'Remedial') selectColor = "bg-red-100 text-red-800 border-red-300 font-bold";
+
+                                    const scoreStyle = (currentScore !== '' && Number(currentScore) < 70) ? "border-red-400 text-red-600 bg-red-50 font-black" : "border-gray-200 text-gray-800 bg-white font-bold";
+
+                                    return `
+                                        <div class="flex justify-between items-center py-2 text-xs gap-2">
+                                            <span class="font-bold text-slate-700 truncate flex-1">${s.name}</span>
+                                            <div class="flex items-center gap-1.5 shrink-0">
+                                                <input type="number" value="${currentScore}" placeholder="Nilai" ${t.is_locked ? 'disabled' : ''} onblur="updateSubmissionScore('${t.id}', '${s.id}', this.value)" class="w-14 p-1.5 text-center text-xs rounded-lg border ${scoreStyle} focus:outline-none focus:border-blue-500">
+                                                <select onchange="updateSubmissionStatus('${t.id}', '${s.id}', this.value)" ${t.is_locked ? 'disabled' : ''} class="p-1.5 text-[10px] rounded-lg border font-bold focus:outline-none ${selectColor}">
+                                                    <option value="Belum Kumpul" ${currentStatus === 'Belum Kumpul' ? 'selected' : ''}>🔴 Belum</option>
+                                                    <option value="Menunggu Verifikasi" ${currentStatus === 'Menunggu Verifikasi' ? 'selected' : ''}>🟡 Verif</option>
+                                                    <option value="Sudah Kumpul" ${currentStatus === 'Sudah Kumpul' ? 'selected' : ''}>🟢 Selesai</option>
+                                                    <option value="Remedial" ${currentStatus === 'Remedial' ? 'selected' : ''}>⚠️ Remed</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div class="mt-3 pt-3 border-t border-dashed border-gray-150 flex justify-between items-center text-[10px] font-black uppercase text-gray-500">
+                        <span>Akumulasi Nilai: <span class="text-blue-600 font-extrabold">${totalScoreVal}</span></span>
+                        <span>Rata-Rata Kelas: <span class="px-2 py-0.5 rounded-md ${averageScoreVal < 70 ? 'bg-red-100 text-red-700' : 'bg-sky-100 text-sky-700'}">${averageScoreVal}</span></span>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    html += `
+                </div>
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
+
+    if (AppStore.isDesktopMode) {
+        const box = document.getElementById('form-tugas-box');
+        const list = document.getElementById('tugas-list-area');
+        if (box && list) {
+            box.classList.remove('hidden');
+            list.classList.remove('lg:col-span-12');
+            list.classList.add('lg:col-span-7');
+        }
+    }
+}
+
+export function filterTaskTab(filter) {
+    playSfx('click');
+    AppStore.activeTaskTabFilter = filter;
+    renderTabTugas(document.getElementById('admin-panel-content'));
+}
+
+export function filterTaskCategory(category) {
+    playSfx('click');
+    AppStore.activeTaskCategoryFilter = category;
+    renderTabTugas(document.getElementById('admin-panel-content'));
+}
+
+export function toggleTaskGrading(taskId) {
+    AppStore.expandedTaskId = (AppStore.expandedTaskId === taskId) ? null : taskId;
+    renderTabTugas(document.getElementById('admin-panel-content'));
+}
+
+export function bukaFormTambahTugas() {
+    const el = document.getElementById('form-tugas-box');
+    const list = document.getElementById('tugas-list-area');
+    if (el) {
+        if (AppStore.isDesktopMode) {
+            el.classList.remove('hidden');
+            return;
+        }
+        
+        el.classList.toggle('hidden');
+        if (!el.classList.contains('hidden')) {
+            document.getElementById('in-tugas-id').value = '';
+            document.getElementById('in-tugas-title').value = '';
+            document.getElementById('in-tugas-desc').value = '';
+            list.classList.add('hidden');
+        } else {
+            list.classList.remove('hidden');
+        }
+    }
+}
+
+export function batalEditTugasForm() {
+    playSfx('click');
+    if (AppStore.isDesktopMode) {
+        document.getElementById('in-tugas-id').value = '';
+        document.getElementById('in-tugas-title').value = '';
+        document.getElementById('in-tugas-desc').value = '';
+        return;
+    }
+    
+    document.getElementById('form-tugas-box').classList.add('hidden');
+    document.getElementById('tugas-list-area').classList.remove('hidden');
+}
+
+export function bukaFormEditTugas(id) {
+    const t = AppStore.tasks.find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('form-tugas-box').classList.remove('hidden');
+    if (!AppStore.isDesktopMode) {
+        document.getElementById('tugas-list-area').classList.add('hidden');
+    }
+    document.getElementById('in-tugas-id').value = t.id;
+    document.getElementById('in-tugas-title').value = t.title;
+    document.getElementById('in-tugas-desc').value = t.description;
+    document.getElementById('in-tugas-date').value = t.due_date;
+    document.getElementById('in-tugas-type').value = t.type;
+    document.getElementById('in-tugas-category').value = t.category;
+}
+
+export function renderTabRekapNilai(container) {
+    let selectedCategory = document.getElementById('rekap-category-filter')?.value || 'PKN';
+    const catTasks = AppStore.tasks.filter(t => t.category === selectedCategory);
+    const studentAverages = [];
+
+    AppStore.students.forEach(s => {
+        let sum = 0;
+        let count = 0;
+        catTasks.forEach(t => {
+            const subm = AppStore.taskSubmissions.find(sub => sub.task_id === t.id && sub.student_id === s.id);
+            if (subm && subm.score !== null && subm.score !== undefined && subm.score !== '') {
+                sum += Number(subm.score);
+                count++;
+            }
+        });
+        const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+        studentAverages.push({
+            id: s.id,
+            name: s.name,
+            gender: s.gender,
+            average: avg,
+            tasksGraded: count
+        });
+    });
+
+    const rankedStudents = [...studentAverages].sort((a,b) => b.average - a.average);
+
+    let html = `
+        <div class="flex justify-between items-center mb-3">
+            <h4 class="font-black text-xs text-indigo-800 uppercase tracking-wider">Rekap Nilai & Ranking Kategori</h4>
+            <select id="rekap-category-filter" onchange="changeRekapCategoryView()" class="p-1 text-[10px] rounded bg-white text-indigo-800 border-2 border-indigo-100 font-black">
+                <option value="PKN" ${selectedCategory === 'PKN' ? 'selected' : ''}>PKN</option>
+                <option value="BINA" ${selectedCategory === 'BINA' ? 'selected' : ''}>BINA</option>
+                <option value="MTK" ${selectedCategory === 'MTK' ? 'selected' : ''}>MTK</option>
+                <option value="IPAS" ${selectedCategory === 'IPAS' ? 'selected' : ''}>IPAS</option>
+                <option value="SENI" ${selectedCategory === 'SENI' ? 'selected' : ''}>SENI</option>
+                <option value="B.ING" ${selectedCategory === 'B.ING' ? 'selected' : ''}>B.ING</option>
+                <option value="KKA" ${selectedCategory === 'KKA' ? 'selected' : ''}>KKA</option>
+                <option value="LITERASI" ${selectedCategory === 'LITERASI' ? 'selected' : ''}>LITERASI</option>
+                <option value="LAINNYA" ${selectedCategory === 'LAINNYA' ? 'selected' : ''}>LAINNYA</option>
+            </select>
+        </div>
+
+        <div class="space-y-3">
+            <div class="overflow-x-auto bg-white rounded-2xl border-2 border-indigo-100 p-2 shadow-sm">
+                <table class="w-full text-xs text-left text-gray-700 font-semibold border-collapse">
+                    <thead>
+                        <tr class="bg-indigo-50 text-indigo-800 uppercase text-[9px] font-black border-b border-indigo-100">
+                            <th class="p-2 text-center w-12">Peringkat</th>
+                            <th class="p-2">Nama Siswa</th>
+                            <th class="p-2 text-center">Tugas Dinilai</th>
+                            <th class="p-2 text-center">Nilai Rerata</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+
+    rankedStudents.forEach((student, idx) => {
+        let medalHtml = `${idx + 1}`;
+        if (idx === 0) medalHtml = '🥇';
+        if (idx === 1) medalHtml = '🥈';
+        if (idx === 2) medalHtml = '🥉';
+
+        const highlightColor = student.average < 70 ? "text-red-600 font-extrabold" : "text-green-600 font-extrabold";
+
+        html += `
+            <tr class="hover:bg-indigo-50/30 border-b border-gray-100">
+                <td class="p-2 text-center font-black text-xs">${medalHtml}</td>
+                <td class="p-2">
+                    <div class="font-bold text-gray-800">${student.name}</div>
+                    <div class="text-[8px] text-gray-400 font-extrabold uppercase">${student.gender}</div>
+                </td>
+                <td class="p-2 text-center font-bold text-gray-600">${student.tasksGraded} Tugas</td>
+                <td class="p-2 text-center text-sm ${highlightColor}">${student.average}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+export function changeRekapCategoryView() {
+    renderTabRekapNilai(document.getElementById('admin-panel-content'));
+}
+
+export function renderTabIdentitas(container) {
+    let html = `
+        <h4 class="font-black text-xs text-pink-600 uppercase tracking-wider mb-2">Edit Identitas & Profil Sistem</h4>
+        <div class="bg-white p-3 rounded-2xl border-2 border-pink-100 space-y-3 shadow-sm">
+            <div>
+                <label class="text-[9px] text-gray-500 font-black uppercase tracking-wide block mb-1">Nama Sekolah</label>
+                <input type="text" id="set-sch-name" value="${AppStore.appSettings.school_name || ''}" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-pink-100 text-gray-800 font-bold focus:outline-none focus:border-pink-500">
+            </div>
+            <div>
+                <label class="text-[9px] text-gray-500 font-black uppercase tracking-wide block mb-1">Nama Kelas / Rombel</label>
+                <input type="text" id="set-sch-class" value="${AppStore.appSettings.class_name || ''}" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-pink-100 text-gray-800 font-bold focus:outline-none focus:border-pink-500">
+            </div>
+            <div>
+                <label class="text-[9px] text-gray-500 font-black uppercase tracking-wide block mb-1">Nama Guru Kelas</label>
+                <input type="text" id="set-sch-guru" value="${AppStore.appSettings.guru_name || ''}" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-pink-100 text-gray-800 font-bold focus:outline-none focus:border-pink-500">
+            </div>
+            <div>
+                <label class="text-[9px] text-gray-500 font-black uppercase tracking-wide block mb-1">NIP Guru Kelas</label>
+                <input type="text" id="set-sch-guru-nip" value="${AppStore.appSettings.guru_nip || ''}" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-pink-100 text-gray-800 font-bold focus:outline-none focus:border-pink-500">
+            </div>
+            <div>
+                <label class="text-[9px] text-gray-500 font-black uppercase tracking-wide block mb-1">Nama Kepala Sekolah</label>
+                <input type="text" id="set-sch-kepsek" value="${AppStore.appSettings.kepsek_name || ''}" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-pink-100 text-gray-800 font-bold focus:outline-none focus:border-pink-500">
+            </div>
+            <div>
+                <label class="text-[9px] text-gray-500 font-black uppercase tracking-wide block mb-1">NIP Kepala Sekolah</label>
+                <input type="text" id="set-sch-kepsek-nip" value="${AppStore.appSettings.kepsek_nip || ''}" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-pink-100 text-gray-800 font-bold focus:outline-none focus:border-pink-500">
+            </div>
+            <div>
+                <label class="text-[9px] text-gray-500 font-black uppercase tracking-wide block mb-1">Versi Aplikasi</label>
+                <input type="text" id="set-sch-ver" value="${AppStore.appSettings.app_version || ''}" class="w-full p-2 text-xs rounded-xl bg-white border-2 border-pink-100 text-gray-800 font-bold focus:outline-none focus:border-pink-500">
+            </div>
+            <button onclick="simpanIdentitasDinamis()" class="btn-3d w-full bg-pink-500 text-white font-black text-xs rounded-xl border-b-4 border-pink-700">✓ SIMPAN IDENTITAS BARU</button>
+        </div>
+    `;
+    container.innerHTML = html;
+}
+
+export function renderTabRapor(container) {
+    let html = `
+        <h4 class="font-black text-xs text-blue-800 uppercase tracking-wider mb-2">Cetak Rapor & Rekapitulasi Resmi</h4>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+            <button onclick="cetakRekapBulananLandscape()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black py-2.5 rounded-xl border-b-2 border-indigo-950 flex items-center justify-center gap-2 btn-3d"><i class="fa-solid fa-file-invoice"></i> CETAK REKAP LANDSCAPE</button>
+            <button onclick="cetakRaporKolektif('Semua')" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black py-2.5 rounded-xl border-b-2 border-blue-900 flex items-center justify-center gap-2 btn-3d"><i class="fa-solid fa-print"></i> CETAK SEMUA RAPOR</button>
+        </div>
+
+        <div class="bg-sky-50 border-2 border-sky-200 p-3 rounded-2xl mb-4 space-y-2">
+            <label class="text-[10px] font-black text-blue-900 block uppercase">Pilih Pelajaran untuk Cetak Nilas Akademik:</label>
+            <select id="cetak-nilai-category-select" class="w-full p-2 text-xs rounded-xl bg-white border border-sky-300 text-gray-850 font-bold focus:outline-none">
+                <option value="Semua">Semua Mata Pelajaran</option>
+                <option value="PKN">PKN</option>
+                <option value="BINA">BINA</option>
+                <option value="MTK">MTK</option>
+                <option value="IPAS">IPAS</option>
+                <option value="SENI">SENI</option>
+                <option value="B.ING">B.ING</option>
+                <option value="KKA">KKA</option>
+                <option value="LITERASI">LITERASI</option>
+                <option value="LAINNYA">LAINNYA</option>
+            </select>
+            <button onclick="cetakRekapNilaiAkademikLandscape()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black py-2.5 rounded-xl border-b-2 border-blue-900 flex items-center justify-center gap-2 btn-3d"><i class="fa-solid fa-graduation-cap"></i> CETAK REKAP NILAI AKADEMIK</button>
+        </div>
+
+        <div class="space-y-2 max-h-40 overflow-y-auto border-t border-gray-200 pt-3">
+    `;
+
+    AppStore.students.forEach(s => {
+        const balance = s.points_good - s.points_bad;
+        const predikat = balance >= 50 ? "Amat Baik ⭐" : (balance >= 0 ? "Cukup Baik 👍" : "Butuh Pembinaan 💙");
+        
+        html += `
+            <div class="p-2.5 bg-white border-2 border-sky-50 rounded-xl flex justify-between items-center text-xs shadow-sm">
+                <div>
+                    <h5 class="font-black text-gray-850">${s.name}</h5>
+                    <p class="text-[9px] text-gray-400">Predikat: ${predikat}</p>
+                </div>
+                <button onclick="bukaLembarCetakRapor('${s.id}')" class="bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-black px-3 py-1.5 rounded-lg border-b-2 border-sky-800">Cetak Rapor</button>
+            </div>
+        `;
+    });
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+export function bukaFormTambahSiswa() {
+    const box = document.getElementById('form-siswa-box');
+    if (box) {
+        box.classList.toggle('hidden');
+        document.getElementById('in-siswa-id').value = '';
+        document.getElementById('in-siswa-name').value = '';
+        document.getElementById('in-siswa-good').value = '0';
+        document.getElementById('in-siswa-bad').value = '0';
+        document.getElementById('in-siswa-photo-data').value = '';
+        document.getElementById('in-siswa-photo').value = '';
+        document.getElementById('preview-photo').classList.add('hidden');
+        document.getElementById('preview-icon').classList.remove('hidden');
+    }
+}
+
+export function bukaFormEditSiswa(id) {
+    const s = AppStore.students.find(x => x.id.toString() === id.toString());
+    if (!s) return;
+    const box = document.getElementById('form-siswa-box');
+    if (box) {
+        box.classList.remove('hidden');
+        document.getElementById('in-siswa-id').value = s.id;
+        document.getElementById('in-siswa-name').value = s.name;
+        document.getElementById('in-siswa-gender').value = s.gender;
+        document.getElementById('in-siswa-good').value = s.points_good;
+        document.getElementById('in-siswa-bad').value = s.points_bad;
+        
+        document.getElementById('in-siswa-photo').value = ''; 
+        const photoDataInput = document.getElementById('in-siswa-photo-data');
+        const previewImg = document.getElementById('preview-photo');
+        const previewIcon = document.getElementById('preview-icon');
+        
+        if (s.photo) {
+            photoDataInput.value = s.photo;
+            previewImg.src = s.photo;
+            previewImg.classList.remove('hidden');
+            previewIcon.classList.add('hidden');
+        } else {
+            photoDataInput.value = '';
+            previewImg.classList.add('hidden');
+            previewIcon.classList.remove('hidden');
+        }
+    }
+}
