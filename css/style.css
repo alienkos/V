@@ -1,0 +1,56 @@
+/* STREAMING_CHUNK:Base setup and variables */
+body {
+font-family: 'Nunito', sans-serif;
+background-color: #f0f9ff;
+background-image: radial-gradient(#bae6fd 2px, transparent 2px);
+background-size: 25px 25px;
+-webkit-tap-highlight-color: transparent;
+}
+
+/* STREAMING_CHUNK:3D Button UI Effects /
+/ Tombol 3D Menggemaskan Khas Game RPG */
+.btn-3d {
+transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+height: 52px;
+}
+.btn-3d:active {
+transform: translateY(4px);
+border-bottom-width: 0px !important;
+margin-bottom: 4px;
+}
+
+/* STREAMING_CHUNK:Animations - Pop In */
+.card-pop {
+animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+0% { transform: scale(0.9); opacity: 0; }
+100% { transform: scale(1); opacity: 1; }
+}
+
+/* STREAMING_CHUNK:Animations - Floating Avatar */
+.avatar-float {
+animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+0% { transform: translateY(0px); }
+50% { transform: translateY(-8px); }
+100% { transform: translateY(0px); }
+}
+
+/* STREAMING_CHUNK:Animations - Blinking Danger Alert */
+.blink-danger {
+animation: blinkRed 1.2s infinite;
+}
+
+@keyframes blinkRed {
+0%, 100% { background-color: #fef2f2; border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+50% { background-color: #fee2e2; border-color: #b91c1c; box-shadow: 0 0 20px rgba(185, 28, 28, 0.7); }
+}
+
+/* STREAMING_CHUNK:Scrollbar hiding */
+::-webkit-scrollbar {
+display: none;
+}
