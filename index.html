@@ -1,472 +1,428 @@
-import React, { useState, useEffect, useRef } from 'react';
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kuis STS Seni Kelas 5 - SDN 4 Rambutan</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Nunito -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-// Data Soal berdasarkan dokumen "Sial seni rupa 3.pdf" dan instruksi
-const questionsData = [
-  {
-    question: "Unsur seni rupa yang berupa goresan atau tarikan yang terbentuk dari kumpulan titik-titik saling terhubung disebut...",
-    options: ["Bidang", "Garis", "Tekstur", "Ruang"],
-    answer: "Garis",
-    explanation: "Garis terbentuk dari kumpulan titik-titik yang ditarik dan saling terhubung."
-  },
-  {
-    question: "Hasil pencampuran dua warna primer antara warna kuning dan warna biru akan menghasilkan warna sekunder, yaitu...",
-    options: ["Hijau", "Jingga", "Ungu", "Cokelat"],
-    answer: "Hijau",
-    explanation: "Kuning dan biru adalah warna primer, jika dicampur menghasilkan warna sekunder yaitu hijau."
-  },
-  {
-    question: "Prinsip seni rupa berupa pengulangan unsur-unsur visual secara teratur dan berkesinambungan sehingga menciptakan kesan gerak dinamakan...",
-    options: ["Proporsi", "Ritme/Irama", "Keseimbangan", "Tekstur"],
-    answer: "Ritme/Irama",
-    explanation: "Ritme memberikan kesan gerak berkesinambungan melalui pengulangan yang teratur."
-  },
-  {
-    question: "Saat menggambar teko dan cangkir, ukuran teko digambar lebih besar dibanding cangkir agar terlihat wajar dan serasi. Hal ini menerapkan prinsip...",
-    options: ["Komposisi", "Ritme", "Proporsi", "Gelap-terang"],
-    answer: "Proporsi",
-    explanation: "Proporsi adalah perbandingan ukuran yang wajar dan serasi antar objek."
-  },
-  {
-    question: "Tata letak gambar di mana bagian sebelah kiri dan kanan memiliki bentuk, ukuran, dan beban visual yang sama dinamakan keseimbangan...",
-    options: ["Asimetris", "Radial", "Simetris", "Bebas"],
-    answer: "Simetris",
-    explanation: "Simetris berarti seimbang dan memiliki beban visual yang sama persis antara sisi kiri dan kanan."
-  },
-  {
-    question: "Alat musik yang berfungsi untuk menjaga tempo atau mengatur irama lagu dan tidak memiliki nada tergolong alat musik...",
-    options: ["Melodis", "Ritmis", "Harmonis", "Diatonis"],
-    answer: "Ritmis",
-    explanation: "Alat musik ritmis tidak memiliki nada, fungsinya khusus mengatur irama/tempo."
-  },
-  {
-    question: "Contoh alat musik melodis sederhana yang dimainkan dengan cara ditiup sambil menekan tuts adalah...",
-    options: ["Tamborin", "Pianika", "Kendang", "Marakas"],
-    answer: "Pianika",
-    explanation: "Pianika dimainkan dengan cara ditiup pada pipanya sambil menekan tuts nada."
-  },
-  {
-    question: "Tanda birama 4/4 pada sebuah karya lagu menandakan bahwa dalam setiap birama terdapat...",
-    options: ["2 ketukan", "3 ketukan", "4 ketukan", "5 ketukan"],
-    answer: "4 ketukan",
-    explanation: "Angka pembilang 4 di depan menunjukkan ada 4 ketukan dalam satu birama."
-  },
-  {
-    question: "Susunan urutan notasi angka tangga nada diatonis mayor yang benar dari nada terendah ke tertinggi adalah...",
-    options: ["1-2-3-4-5-6-7-1'", "1-3-5-2-4-6-7-1'", "7-6-5-4-3-2-1-0", "1-1-2-2-3-3-4-4"],
-    answer: "1-2-3-4-5-6-7-1'",
-    explanation: "Ini adalah susunan nada mayor standar dari do rendah ke do tinggi."
-  },
-  {
-    question: "Rangkaian daftar lagu atau karya musik yang disiapkan untuk dibawakan dalam pertunjukan musik dinamakan...",
-    options: ["Aransemen", "Repertoar", "Partitur", "Tangga nada"],
-    answer: "Repertoar",
-    explanation: "Repertoar adalah daftar karya musik yang disiapkan untuk dimainkan."
-  },
-  {
-    question: "Nilai permukaan suatu benda yang dapat dirasakan halus atau kasarnya disebut...",
-    options: ["Komposisi", "Tekstur", "Ansambel", "Proporsi"],
-    answer: "Tekstur",
-    explanation: "Tekstur adalah sifat permukaan yang bisa diraba atau dilihat kehalusan/kekasarannya."
-  },
-  {
-    question: "Alat musik ritmis tradisional yang terbuat dari kayu dan dilapisi selaput kulit hewan adalah...",
-    options: ["Angklung", "Kendang", "Pianika", "Tamborin"],
-    answer: "Kendang",
-    explanation: "Kendang adalah alat ritmis tradisional berselaput kulit yang dipukul."
-  },
-  {
-    question: "Pengaturan tata letak dan penempatan objek gambar pada bidang kertas agar seimbang disebut...",
-    options: ["Tekstur", "Komposisi", "Ritme", "Aransemen"],
-    answer: "Komposisi",
-    explanation: "Komposisi adalah cara menyusun dan mengatur objek gambar agar tampak menarik dan seimbang."
-  },
-  {
-    question: "Alat musik melodis khas yang terbuat dari bilah bambu dan dimainkan dengan digoyangkan adalah...",
-    options: ["Kendang", "Angklung", "Marakas", "Suling"],
-    answer: "Angklung",
-    explanation: "Angklung khas Jawa Barat, menghasilkan nada saat bambunya saling berbenturan karena digoyangkan."
-  },
-  {
-    question: "Kegiatan bermain musik secara bersama-sama menggunakan berbagai macam alat musik disebut...",
-    options: ["Ansambel", "Repertoar", "Partitur", "Paduan Suara"],
-    answer: "Ansambel",
-    explanation: "Ansambel adalah sajian musik yang dimainkan secara bersama-sama menggunakan beberapa alat musik."
-  },
-  {
-    question: "Benar atau Salah: Alat musik ritmis berfungsi sebagai pembawa melodi utama lagu.",
-    options: ["Benar", "Salah"],
-    answer: "Salah",
-    explanation: "Yang membawa melodi adalah alat musik melodis. Alat ritmis mengatur tempo."
-  },
-  {
-    question: "Benar atau Salah: Warna merah, kuning, dan biru tergolong sebagai kelompok warna primer.",
-    options: ["Benar", "Salah"],
-    answer: "Benar",
-    explanation: "Ketiga warna ini adalah warna dasar yang tidak bisa dihasilkan dari campuran warna lain."
-  },
-  {
-    question: "Benar atau Salah: Birama 3/4 menunjukkan bahwa setiap birama terdiri atas 3 ketukan.",
-    options: ["Benar", "Salah"],
-    answer: "Benar",
-    explanation: "Angka 3 menunjukkan jumlah ketukan dalam tiap ruas biramanya."
-  },
-  {
-    question: "Benar atau Salah: Pengulangan bentuk garis atau bidang secara berturut-turut pada pola keramik lantai membentuk prinsip ritme.",
-    options: ["Benar", "Salah"],
-    answer: "Benar",
-    explanation: "Pengulangan bentuk garis/bidang secara terus-menerus adalah contoh penerapan ritme."
-  },
-  {
-    question: "Benar atau Salah: Pianika dan rekorder merupakan contoh alat musik ritmis yang tidak bernada.",
-    options: ["Benar", "Salah"],
-    answer: "Salah",
-    explanation: "Pianika dan rekorder memiliki tangga nada (do re mi...), sehingga termasuk alat musik melodis, bukan ritmis."
-  }
-];
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #f0f9ff; /* Light blue background */
+            -webkit-tap-highlight-color: transparent;
+        }
 
-// Juicy Colors for buttons
-const buttonColors = [
-  "bg-pink-500 border-pink-700 shadow-pink-800",
-  "bg-blue-500 border-blue-700 shadow-blue-800",
-  "bg-green-500 border-green-700 shadow-green-800",
-  "bg-orange-500 border-orange-700 shadow-orange-800"
-];
+        .font-black {
+            font-weight: 900;
+        }
 
-export default function App() {
-  const [gameState, setGameState] = useState('start'); // 'start', 'playing', 'result'
-  const [playerName, setPlayerName] = useState('');
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [score, setScore] = useState(0);
-  
-  // Feedback Modal State
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
-  const [selectedAnswer, setSelectedAnswer] = useState('');
-
-  const cardRef = useRef(null);
-
-  // Load external assets
-  useEffect(() => {
-    // Load Font Awesome
-    const linkFA = document.createElement('link');
-    linkFA.rel = 'stylesheet';
-    linkFA.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-    document.head.appendChild(linkFA);
-
-    // Load Nunito Font
-    const linkFont = document.createElement('link');
-    linkFont.rel = 'stylesheet';
-    linkFont.href = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap';
-    document.head.appendChild(linkFont);
-
-    // Load html2canvas
-    const script = document.createElement('script');
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-    script.async = true;
-    document.body.appendChild(script);
-  }, []);
-
-  const handleStart = () => {
-    if (playerName.trim() !== '') {
-      setGameState('playing');
-      setCurrentQuestion(0);
-      setScore(0);
-    }
-  };
-
-  const handleAnswer = (option) => {
-    const correct = option === questionsData[currentQuestion].answer;
-    setIsCorrect(correct);
-    setSelectedAnswer(option);
-    if (correct) {
-      setScore(score + 1);
-    }
-    setShowFeedback(true);
-  };
-
-  const handleNextQuestion = () => {
-    setShowFeedback(false);
-    if (currentQuestion < questionsData.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      setGameState('result');
-    }
-  };
-
-  const handleDownload = () => {
-    if (window.html2canvas && cardRef.current) {
-      window.html2canvas(cardRef.current, { backgroundColor: null, scale: 2 }).then(canvas => {
-        const link = document.createElement('a');
-        link.download = `Kartu-Prestasi-${playerName}.png`;
-        link.href = canvas.toDataURL();
-        link.click();
-      });
-    }
-  };
-
-  const getPredicate = () => {
-    if (score >= 18) return { text: "Maestro Seni!", icon: "fa-trophy", color: "text-yellow-400" };
-    if (score >= 14) return { text: "Seniman Hebat!", icon: "fa-star", color: "text-blue-400" };
-    if (score >= 10) return { text: "Pelukis Cilik!", icon: "fa-palette", color: "text-pink-400" };
-    return { text: "Semangat Belajar!", icon: "fa-fire", color: "text-orange-400" };
-  };
-
-  return (
-    <>
-      <style dangerouslySetInnerHTML={{__html: `
-        body { font-family: 'Nunito', sans-serif; background-color: #f0fdf4; margin: 0; padding: 0; }
+        /* Background Gradient Juicy */
         .bg-juicy {
-          background: radial-gradient(circle at top left, #a7f3d0, #f0fdf4);
-          min-height: 100vh;
+            background: linear-gradient(135deg, #a7f3d0 0%, #38bdf8 100%);
+            min-height: 100vh;
         }
+
+        /* 3D Button Style */
         .btn-3d {
-          position: relative;
-          border-width: 2px;
-          border-radius: 1rem;
-          padding: 1rem;
-          font-weight: 800;
-          color: white;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          transition: all 0.1s ease-in-out;
-          box-shadow: 0 6px 0 0 inset rgba(255,255,255,0.2), 0 8px 0 0 currentColor;
-          margin-bottom: 8px; /* Space for shadow */
-          cursor: pointer;
+            position: relative;
+            border-radius: 1rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.1s ease-in-out;
+            cursor: pointer;
+            border: 2px solid transparent;
+            user-select: none;
         }
+
         .btn-3d:active {
-          transform: translateY(6px);
-          box-shadow: 0 2px 0 0 inset rgba(255,255,255,0.2), 0 2px 0 0 currentColor;
+            transform: translateY(6px);
         }
-        
-        /* Specific colors defining their own currentColor for the box-shadow */
-        .btn-pink { background-color: #ec4899; border-color: #be185d; color: #831843; box-shadow: 0 6px 0 0 inset rgba(255,255,255,0.3), 0 8px 0 0 #9d174d; }
-        .btn-pink:active { box-shadow: 0 2px 0 0 inset rgba(255,255,255,0.3), 0 2px 0 0 #9d174d; }
-        
-        .btn-blue { background-color: #3b82f6; border-color: #1d4ed8; color: #1e3a8a; box-shadow: 0 6px 0 0 inset rgba(255,255,255,0.3), 0 8px 0 0 #1e40af; }
-        .btn-blue:active { box-shadow: 0 2px 0 0 inset rgba(255,255,255,0.3), 0 2px 0 0 #1e40af; }
-        
-        .btn-green { background-color: #10b981; border-color: #047857; color: #064e3b; box-shadow: 0 6px 0 0 inset rgba(255,255,255,0.3), 0 8px 0 0 #065f46; }
-        .btn-green:active { box-shadow: 0 2px 0 0 inset rgba(255,255,255,0.3), 0 2px 0 0 #065f46; }
-        
-        .btn-orange { background-color: #f59e0b; border-color: #b45309; color: #78350f; box-shadow: 0 6px 0 0 inset rgba(255,255,255,0.3), 0 8px 0 0 #92400e; }
-        .btn-orange:active { box-shadow: 0 2px 0 0 inset rgba(255,255,255,0.3), 0 2px 0 0 #92400e; }
 
-        .btn-purple { background-color: #8b5cf6; border-color: #5b21b6; color: #4c1d95; box-shadow: 0 6px 0 0 inset rgba(255,255,255,0.3), 0 8px 0 0 #6d28d9; }
-        .btn-purple:active { box-shadow: 0 2px 0 0 inset rgba(255,255,255,0.3), 0 2px 0 0 #6d28d9; }
+        /* Color Variants for Options */
+        .btn-color-0 { background-color: #f43f5e; border-color: #be123c; color: white; box-shadow: 0 6px 0 0 #9f1239; margin-bottom: 8px; }
+        .btn-color-0:active { box-shadow: 0 0px 0 0 #9f1239; }
 
-        .btn-text-white { color: white !important; }
+        .btn-color-1 { background-color: #3b82f6; border-color: #1d4ed8; color: white; box-shadow: 0 6px 0 0 #1e40af; margin-bottom: 8px; }
+        .btn-color-1:active { box-shadow: 0 0px 0 0 #1e40af; }
 
-        .animate-bounce-in {
-          animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        .btn-color-2 { background-color: #10b981; border-color: #047857; color: white; box-shadow: 0 6px 0 0 #065f46; margin-bottom: 8px; }
+        .btn-color-2:active { box-shadow: 0 0px 0 0 #065f46; }
+
+        .btn-color-3 { background-color: #f59e0b; border-color: #b45309; color: white; box-shadow: 0 6px 0 0 #92400e; margin-bottom: 8px; }
+        .btn-color-3:active { box-shadow: 0 0px 0 0 #92400e; }
+
+        /* Specific Buttons */
+        .btn-start { background-color: #8b5cf6; border-color: #6d28d9; color: white; box-shadow: 0 8px 0 0 #5b21b6; margin-bottom: 8px; }
+        .btn-start:active { transform: translateY(8px); box-shadow: 0 0px 0 0 #5b21b6; margin-bottom: 8px; }
+
+        .btn-next { background-color: #0ea5e9; border-color: #0369a1; color: white; box-shadow: 0 6px 0 0 #075985; margin-bottom: 8px; }
+        .btn-next:active { box-shadow: 0 0px 0 0 #075985; }
+
+        /* Animations */
+        .animate-pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }
-        @keyframes bounceIn {
-          0% { transform: scale(0.5); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
         }
-        .trading-card-bg {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
+
+        /* Glass Panel */
         .glass-panel {
-          background: rgba(255, 255, 255, 0.9);
-          backdrop-filter: blur(10px);
-          border: 4px solid white;
-          box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 4px solid white;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
-      `}} />
 
-      <div className="bg-juicy flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
+        /* Trading Card Styling */
+        .trading-card {
+            background: linear-gradient(135deg, #fdf4ff 0%, #e0e7ff 100%);
+            border: 8px solid #fbbf24;
+            border-radius: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .card-inner-border {
+            border: 4px dashed #818cf8;
+            border-radius: 1rem;
+            margin: 8px;
+            padding: 1.5rem;
+            height: calc(100% - 16px);
+            background: rgba(255, 255, 255, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-juicy flex items-center justify-center p-4">
 
-          {/* === START SCREEN === */}
-          {gameState === 'start' && (
-            <div className="glass-panel rounded-3xl p-8 text-center animate-bounce-in">
-              <div className="text-6xl mb-4 animate-bounce">🎨🎭</div>
-              <h1 className="text-4xl font-black text-purple-700 mb-2 drop-shadow-md">
-                Kuis Juara Seni
-              </h1>
-              <h2 className="text-xl font-bold text-gray-600 mb-8">Kelas 5 SD</h2>
-              
-              <div className="mb-6">
-                <label className="block text-gray-700 font-bold mb-2 text-left">Siapa namamu?</label>
+    <!-- App Container -->
+    <div id="app" class="w-full max-w-md mx-auto">
+
+        <!-- ================= START SCREEN ================= -->
+        <div id="start-screen" class="glass-panel rounded-3xl p-8 text-center animate-pop-in">
+            <div class="text-6xl mb-4">🎨🎵</div>
+            <h1 class="text-3xl font-black text-purple-700 mb-2 leading-tight">
+                Kuis STS Seni
+            </h1>
+            <h2 class="text-xl font-bold text-gray-600 mb-2">Kelas 5</h2>
+            <p class="text-sm font-bold text-gray-400 mb-8">SDN 4 Rambutan</p>
+            
+            <div class="mb-6 text-left">
+                <label class="block text-gray-700 font-bold mb-2 ml-2">Siapa namamu?</label>
                 <input 
-                  type="text" 
-                  className="w-full text-2xl font-bold text-center border-4 border-purple-200 rounded-2xl p-3 focus:outline-none focus:border-purple-500 shadow-inner"
-                  placeholder="Ketik namamu..."
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  maxLength={15}
-                />
-              </div>
-
-              <button 
-                onClick={handleStart}
-                disabled={!playerName.trim()}
-                className={`w-full btn-3d btn-purple btn-text-white text-xl py-4 ${!playerName.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                Mulai Bermain <i className="fa-solid fa-play ml-2"></i>
-              </button>
-            </div>
-          )}
-
-          {/* === QUIZ SCREEN === */}
-          {gameState === 'playing' && (
-            <div className="flex flex-col gap-4">
-              {/* Header */}
-              <div className="flex justify-between items-center bg-white rounded-2xl p-4 shadow-sm border-2 border-green-200">
-                <div className="font-bold text-green-700">
-                  <i className="fa-solid fa-list-check mr-2"></i>
-                  Soal {currentQuestion + 1} / {questionsData.length}
-                </div>
-                <div className="font-black text-xl text-orange-500">
-                  <i className="fa-solid fa-star text-yellow-400 mr-1"></i>
-                  {score}
-                </div>
-              </div>
-
-              {/* Question Card */}
-              <div className="glass-panel rounded-3xl p-6 text-center shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <i className="fa-solid fa-music text-6xl"></i>
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 leading-snug mb-2 relative z-10">
-                  {questionsData[currentQuestion].question}
-                </h3>
-              </div>
-
-              {/* Options */}
-              <div className="grid grid-cols-1 gap-4 mt-2">
-                {questionsData[currentQuestion].options.map((option, index) => {
-                  const colorClasses = ['btn-pink', 'btn-blue', 'btn-orange', 'btn-green'];
-                  const btnClass = colorClasses[index % colorClasses.length];
-                  
-                  return (
-                    <button 
-                      key={index}
-                      onClick={() => handleAnswer(option)}
-                      className={`btn-3d ${btnClass} btn-text-white text-lg py-4 w-full`}
-                    >
-                      {option}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* === FEEDBACK MODAL === */}
-          {showFeedback && (
-            <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-              <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center animate-bounce-in border-8 shadow-2xl relative overflow-hidden" 
-                   style={{ borderColor: isCorrect ? '#10b981' : '#f43f5e' }}>
-                
-                {isCorrect ? (
-                  <>
-                    <div className="text-6xl mb-2 text-green-500"><i className="fa-solid fa-face-smile-beam"></i></div>
-                    <h2 className="text-3xl font-black text-green-600 mb-2">Hore! Hebat!</h2>
-                  </>
-                ) : (
-                  <>
-                     <div className="text-6xl mb-2 text-rose-500"><i className="fa-solid fa-face-sad-tear"></i></div>
-                     <h2 className="text-3xl font-black text-rose-600 mb-2">Tetap Semangat!</h2>
-                     <p className="font-bold text-gray-600 mb-2">
-                       Jawaban yang tepat: <span className="text-rose-600 border-b-2 border-rose-300">{questionsData[currentQuestion].answer}</span>
-                     </p>
-                  </>
-                )}
-
-                <div className="bg-gray-100 rounded-xl p-4 mb-6 mt-4 text-left border-2 border-gray-200">
-                  <p className="text-sm font-bold text-gray-500 mb-1"><i className="fa-solid fa-lightbulb text-yellow-500 mr-1"></i> Penjelasan:</p>
-                  <p className="text-gray-800 font-semibold">{questionsData[currentQuestion].explanation}</p>
-                </div>
-
-                <button 
-                  onClick={handleNextQuestion}
-                  className="w-full btn-3d btn-purple btn-text-white text-xl py-3"
+                    type="text" 
+                    id="player-name" 
+                    class="w-full text-2xl font-bold text-center border-4 border-purple-200 rounded-2xl p-4 focus:outline-none focus:border-purple-500 bg-white"
+                    placeholder="Ketik namamu..."
+                    maxlength="15"
                 >
-                  Lanjut <i className="fa-solid fa-arrow-right ml-2"></i>
-                </button>
-              </div>
             </div>
-          )}
 
-          {/* === RESULT SCREEN (TRADING CARD) === */}
-          {gameState === 'result' && (
-            <div className="flex flex-col items-center animate-bounce-in">
-              
-              <div className="text-center mb-6">
-                 <h2 className="text-3xl font-black text-purple-700">Kuis Selesai!</h2>
-                 <p className="font-bold text-gray-600">Kerja bagus, {playerName}!</p>
-              </div>
-
-              {/* Card Container for html2canvas */}
-              <div 
-                ref={cardRef} 
-                className="trading-card-bg w-80 rounded-[2rem] p-2 shadow-2xl relative overflow-hidden mb-6 border-8 border-yellow-300"
-              >
-                {/* Decoration */}
-                <div className="absolute top-0 right-0 opacity-20 transform translate-x-4 -translate-y-4">
-                  <i className="fa-solid fa-star text-9xl text-white"></i>
-                </div>
-
-                <div className="bg-white bg-opacity-90 rounded-3xl p-6 h-full flex flex-col items-center text-center relative z-10 border-4 border-white border-dashed">
-                  
-                  <div className="text-sm font-black text-purple-600 tracking-widest uppercase mb-4">
-                    Kuis Juara Seni Kls 5
-                  </div>
-                  
-                  <div className={`text-6xl mb-2 drop-shadow-md ${getPredicate().color}`}>
-                    <i className={`fa-solid ${getPredicate().icon}`}></i>
-                  </div>
-                  
-                  <h3 className="text-3xl font-black text-gray-800 leading-tight">
-                    {playerName}
-                  </h3>
-                  
-                  <div className={`mt-2 py-1 px-4 rounded-full font-bold text-white shadow-sm ${score >= 10 ? 'bg-green-500' : 'bg-orange-500'}`}>
-                    {getPredicate().text}
-                  </div>
-
-                  <div className="mt-8 bg-gray-100 w-full rounded-2xl p-4 border-2 border-gray-200">
-                    <p className="text-gray-500 font-bold text-sm">SKOR AKHIR</p>
-                    <div className="text-5xl font-black text-purple-700">
-                      {score}<span className="text-2xl text-gray-400">/20</span>
-                    </div>
-                  </div>
-                  
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex w-full gap-4 max-w-sm">
-                <button 
-                  onClick={handleDownload}
-                  className="flex-1 btn-3d btn-green btn-text-white py-3 text-sm flex flex-col items-center justify-center gap-1"
-                >
-                  <i className="fa-solid fa-download text-xl"></i>
-                  <span>Unduh Kartu</span>
-                </button>
-                
-                <button 
-                  onClick={() => {
-                    setGameState('start');
-                    setPlayerName('');
-                  }}
-                  className="flex-1 btn-3d btn-orange btn-text-white py-3 text-sm flex flex-col items-center justify-center gap-1"
-                >
-                  <i className="fa-solid fa-rotate-right text-xl"></i>
-                  <span>Main Lagi</span>
-                </button>
-              </div>
-              
-              <p className="text-xs text-center text-gray-400 mt-4 font-bold">
-                *Jika tombol unduh tidak berfungsi, kamu bisa screenshot kartu ini!
-              </p>
-
-            </div>
-          )}
-
+            <button onclick="startQuiz()" class="btn-3d btn-start w-full text-xl py-4 flex items-center justify-center gap-2">
+                Mulai Bermain <i class="fa-solid fa-play"></i>
+            </button>
         </div>
-      </div>
-    </>
-  );
-}
+
+
+        <!-- ================= QUIZ SCREEN ================= -->
+        <div id="quiz-screen" class="hidden flex flex-col gap-4 animate-pop-in">
+            <!-- Header -->
+            <div class="flex justify-between items-center bg-white rounded-2xl p-4 shadow-sm border-2 border-blue-200">
+                <div class="font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-lg">
+                    <i class="fa-solid fa-list-check mr-2"></i>
+                    Soal <span id="current-q-num">1</span>/20
+                </div>
+                <div class="font-black text-xl text-orange-500 flex items-center bg-orange-100 px-3 py-1 rounded-lg">
+                    <i class="fa-solid fa-star text-yellow-400 mr-2"></i>
+                    <span id="score-display">0</span>
+                </div>
+            </div>
+
+            <!-- Question Card -->
+            <div class="glass-panel rounded-3xl p-6 text-center shadow-lg relative overflow-hidden mt-2">
+                <div class="absolute top-0 right-0 p-4 opacity-10">
+                    <i class="fa-solid fa-palette text-6xl"></i>
+                </div>
+                <h3 id="question-text" class="text-xl font-bold text-gray-800 leading-snug mb-2 relative z-10">
+                    <!-- Question goes here -->
+                </h3>
+            </div>
+
+            <!-- Options Container -->
+            <div id="options-container" class="flex flex-col mt-4">
+                <!-- Buttons injected via JS -->
+            </div>
+        </div>
+
+
+        <!-- ================= FEEDBACK MODAL ================= -->
+        <div id="feedback-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div id="modal-content" class="bg-white rounded-3xl p-6 max-w-sm w-full text-center border-8 shadow-2xl relative overflow-hidden">
+                
+                <div id="modal-icon" class="text-7xl mb-4 mt-2"></div>
+                <h2 id="modal-title" class="text-3xl font-black mb-2"></h2>
+                
+                <div class="bg-gray-100 rounded-xl p-4 mb-6 mt-4 text-left border-2 border-gray-200">
+                    <p class="text-sm font-bold text-gray-500 mb-1">
+                        <i class="fa-solid fa-lightbulb text-yellow-500 mr-1"></i> Penjelasan:
+                    </p>
+                    <p id="modal-explanation" class="text-gray-800 font-bold leading-tight"></p>
+                </div>
+
+                <button onclick="nextQuestion()" class="btn-3d btn-next w-full text-xl py-3 flex justify-center items-center gap-2">
+                    Lanjut <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+
+        <!-- ================= RESULT SCREEN ================= -->
+        <div id="result-screen" class="hidden flex flex-col items-center animate-pop-in w-full">
+            
+            <div class="text-center mb-6 bg-white/80 p-4 rounded-2xl backdrop-blur-sm border-2 border-white w-full shadow-lg">
+                <h2 class="text-3xl font-black text-purple-700">Kuis Selesai!</h2>
+                <p class="font-bold text-gray-700">Kerja yang luar biasa!</p>
+            </div>
+
+            <!-- TRADING CARD (To be downloaded) -->
+            <div id="trading-card" class="trading-card w-full max-w-[320px] shadow-2xl mb-8">
+                <div class="card-inner-border flex flex-col items-center text-center relative z-10">
+                    
+                    <div class="w-full flex justify-between items-center mb-4">
+                        <i class="fa-solid fa-award text-3xl text-yellow-500"></i>
+                        <div class="text-xs font-black text-indigo-500 tracking-wider uppercase text-right">
+                            Kuis STS Seni<br>Kelas 5
+                        </div>
+                    </div>
+                    
+                    <!-- Avatar placeholder -->
+                    <div class="w-24 h-24 bg-gradient-to-tr from-purple-400 to-blue-400 rounded-full flex items-center justify-center border-4 border-white shadow-md mb-4">
+                        <i class="fa-solid fa-user-graduate text-4xl text-white"></i>
+                    </div>
+                    
+                    <h3 id="card-name" class="text-2xl font-black text-gray-800 leading-tight w-full break-words px-2">
+                        Nama Pemain
+                    </h3>
+                    
+                    <div class="mt-2 text-sm font-bold text-gray-500">SDN 4 Rambutan</div>
+
+                    <div class="mt-6 bg-indigo-50 w-full rounded-2xl p-4 border-2 border-indigo-100 shadow-inner">
+                        <p class="text-indigo-400 font-bold text-sm mb-1">SKOR AKHIR</p>
+                        <div class="text-6xl font-black text-indigo-600 flex items-center justify-center">
+                            <span id="card-score">100</span>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex w-full gap-4">
+                <button onclick="downloadCard()" class="flex-1 btn-3d btn-color-2 text-sm py-4 flex flex-col items-center justify-center gap-1">
+                    <i class="fa-solid fa-download text-xl"></i>
+                    <span>Unduh Kartu</span>
+                </button>
+                
+                <button onclick="restartQuiz()" class="flex-1 btn-3d btn-color-3 text-sm py-4 flex flex-col items-center justify-center gap-1">
+                    <i class="fa-solid fa-rotate-right text-xl"></i>
+                    <span>Main Lagi</span>
+                </button>
+            </div>
+            
+        </div>
+
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        const quizData = [
+            { "q": "Unsur seni rupa yang berupa goresan atau tarikan yang terbentuk dari kumpulan titik-titik saling terhubung disebut...", "opts": ["Bidang", "Garis", "Tekstur", "Ruang"], "ans": "Garis", "expC": "Hebat! Garis adalah kumpulan titik yang terhubung.", "expW": "Jawaban yang tepat adalah Garis. Bidang adalah area, tekstur itu permukaan, ruang itu volume." },
+            { "q": "Hasil pencampuran dua warna primer antara warna kuning dan warna biru akan menghasilkan warna sekunder, yaitu...", "opts": ["Hijau", "Jingga", "Ungu", "Cokelat"], "ans": "Hijau", "expC": "Keren! Kuning dan biru menghasilkan hijau.", "expW": "Jawaban yang tepat adalah Hijau. Jingga itu merah+kuning, ungu itu merah+biru." },
+            { "q": "Prinsip seni rupa berupa pengulangan unsur-unsur visual secara teratur dan berkesinambungan sehingga menciptakan kesan gerak dinamakan...", "opts": ["Proporsi", "Ritme/Irama", "Keseimbangan", "Tekstur"], "ans": "Ritme/Irama", "expC": "Pintar! Ritme adalah pengulangan yang memberi kesan gerak.", "expW": "Jawaban yang tepat adalah Ritme/Irama. Proporsi itu perbandingan ukuran." },
+            { "q": "Saat menggambar teko dan cangkir, ukuran teko digambar lebih besar dibanding cangkir agar terlihat wajar dan serasi. Hal ini menerapkan prinsip...", "opts": ["Komposisi", "Ritme", "Proporsi", "Gelap-terang"], "ans": "Proporsi", "expC": "Betul sekali! Proporsi mengatur perbandingan ukuran benda agar serasi.", "expW": "Jawaban yang tepat adalah Proporsi." },
+            { "q": "Tata letak gambar di mana bagian sebelah kiri dan kanan memiliki bentuk, ukuran, dan beban visual yang sama dinamakan keseimbangan...", "opts": ["Asimetris", "Ritme", "Proporsi", "Simetris"], "ans": "Simetris", "expC": "Tepat! Kiri dan kanan sama persis disebut simetris.", "expW": "Jawaban yang tepat adalah Simetris. Asimetris itu jika kiri dan kanan berbeda." },
+            { "q": "Alat musik yang berfungsi untuk menjaga tempo atau mengatur irama lagu dan tidak memiliki nada tergolong alat musik...", "opts": ["Melodis", "Ritmis", "Harmonis", "Diatonis"], "ans": "Ritmis", "expC": "Hebat! Alat musik tanpa nada disebut ritmis.", "expW": "Jawaban yang tepat adalah Ritmis. Melodis itu bernada." },
+            { "q": "Contoh alat musik melodis sederhana yang dimainkan dengan cara ditiup sambil menekan tuts adalah...", "opts": ["Tamborin", "Pianika", "Kendang", "Marakas"], "ans": "Pianika", "expC": "Luar biasa! Pianika ditiup dan ditekan tutsnya.", "expW": "Jawaban yang tepat adalah Pianika." },
+            { "q": "Tanda birama 4/4 pada sebuah karya lagu menandakan bahwa dalam setiap birama terdapat...", "opts": ["2 ketukan", "3 ketukan", "4 ketukan", "5 ketukan"], "ans": "4 ketukan", "expC": "Pintar! Angka atas pada 4/4 menunjukkan jumlah ketukan.", "expW": "Jawaban yang tepat adalah 4 ketukan." },
+            { "q": "Susunan urutan notasi angka tangga nada diatonis mayor yang benar dari nada terendah ke tertinggi adalah...", "opts": ["1-2-3-4-5-6-7-1'", "1-3-5-2-4-6-7-1'", "7-6-5-4-3-2-1-0", "1-1-2-2-3-3-4-4"], "ans": "1-2-3-4-5-6-7-1'", "expC": "Tepat! Tangga nada mayor berurutan dari do rendah ke do tinggi.", "expW": "Jawaban yang tepat adalah 1-2-3-4-5-6-7-1'." },
+            { "q": "Rangkaian daftar lagu atau karya musik yang disiapkan untuk dibawakan dalam pertunjukan musik dinamakan...", "opts": ["Aransemen", "Repertoar", "Partitur", "Tangga nada"], "ans": "Repertoar", "expC": "Betul! Repertoar adalah daftar lagu yang disiapkan.", "expW": "Jawaban yang tepat adalah Repertoar. Aransemen itu gubahan lagu." },
+            { "q": "Nilai permukaan suatu benda yang dapat dirasakan halus atau kasarnya disebut...", "opts": ["Komposisi", "Tekstur", "Kendang", "Ansambel"], "ans": "Tekstur", "expC": "Bagus! Halus atau kasarnya permukaan disebut tekstur.", "expW": "Jawaban yang tepat adalah Tekstur." },
+            { "q": "Alat musik ritmis tradisional yang terbuat dari kayu dan dilapisi selaput kulit hewan adalah...", "opts": ["Angklung", "Kendang", "Pianika", "Tamborin"], "ans": "Kendang", "expC": "Tepat! Kendang dari kayu dan kulit hewan.", "expW": "Jawaban yang tepat adalah Kendang." },
+            { "q": "Pengaturan tata letak dan penempatan objek gambar pada bidang kertas agar seimbang disebut...", "opts": ["Komposisi", "Tekstur", "Ritme", "Proporsi"], "ans": "Komposisi", "expC": "Hebat! Komposisi mengatur letak agar seimbang dan indah.", "expW": "Jawaban yang tepat adalah Komposisi." },
+            { "q": "Alat musik melodis khas yang terbuat dari bilah bambu dan dimainkan dengan digoyangkan adalah...", "opts": ["Kendang", "Angklung", "Marakas", "Tamborin"], "ans": "Angklung", "expC": "Keren! Angklung dari bambu dan digoyangkan.", "expW": "Jawaban yang tepat adalah Angklung." },
+            { "q": "Kegiatan bermain musik secara bersama-sama menggunakan berbagai macam alat musik disebut...", "opts": ["Ansambel", "Aransemen", "Repertoar", "Partitur"], "ans": "Ansambel", "expC": "Pintar! Bermain musik bersama disebut ansambel.", "expW": "Jawaban yang tepat adalah Ansambel." },
+            { "q": "BENAR atau SALAH: Alat musik ritmis berfungsi sebagai pembawa melodi utama lagu.", "opts": ["Benar", "Salah"], "ans": "Salah", "expC": "Betul! Alat musik ritmis mengatur tempo, bukan melodi.", "expW": "Pernyataan ini Salah. Alat musik ritmis itu tidak bernada, fungsinya mengatur irama." },
+            { "q": "BENAR atau SALAH: Warna merah, kuning, dan biru tergolong sebagai kelompok warna primer.", "opts": ["Benar", "Salah"], "ans": "Benar", "expC": "Tepat! Merah, kuning, biru adalah warna dasar/primer.", "expW": "Pernyataan ini Benar. Merah, kuning, biru tidak bisa dibuat dari campuran warna lain." },
+            { "q": "BENAR atau SALAH: Birama 3/4 menunjukkan bahwa setiap birama terdiri atas 3 ketukan.", "opts": ["Benar", "Salah"], "ans": "Benar", "expC": "Hebat! Angka 3 menunjukkan ada 3 ketukan tiap birama.", "expW": "Pernyataan ini Benar." },
+            { "q": "BENAR atau SALAH: Pengulangan bentuk garis atau bidang secara berturut-turut pada pola keramik lantai membentuk prinsip ritme.", "opts": ["Benar", "Salah"], "ans": "Benar", "expC": "Betul! Pengulangan pola secara teratur membentuk ritme.", "expW": "Pernyataan ini Benar." },
+            { "q": "BENAR atau SALAH: Pianika dan rekorder merupakan contoh alat musik ritmis yang tidak bernada.", "opts": ["Benar", "Salah"], "ans": "Salah", "expC": "Tepat! Pianika dan rekorder memiliki nada, jadi termasuk melodis.", "expW": "Pernyataan ini Salah. Mereka memiliki nada, jadi termasuk alat musik melodis." }
+        ];
+
+        // State Variables
+        let playerName = '';
+        let currentQuestionIndex = 0;
+        let correctAnswers = 0;
+
+        // DOM Elements
+        const screens = {
+            start: document.getElementById('start-screen'),
+            quiz: document.getElementById('quiz-screen'),
+            result: document.getElementById('result-screen')
+        };
+        const nameInput = document.getElementById('player-name');
+        const questionText = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+        const currentQNumDisplay = document.getElementById('current-q-num');
+        const scoreDisplay = document.getElementById('score-display');
+        
+        // Modal Elements
+        const modal = document.getElementById('feedback-modal');
+        const modalContent = document.getElementById('modal-content');
+        const modalIcon = document.getElementById('modal-icon');
+        const modalTitle = document.getElementById('modal-title');
+        const modalExp = document.getElementById('modal-explanation');
+
+        // Functions
+        function switchScreen(screenName) {
+            Object.values(screens).forEach(s => s.classList.add('hidden'));
+            screens[screenName].classList.remove('hidden');
+            screens[screenName].classList.remove('animate-pop-in');
+            // Trigger reflow to restart animation
+            void screens[screenName].offsetWidth; 
+            screens[screenName].classList.add('animate-pop-in');
+        }
+
+        function startQuiz() {
+            playerName = nameInput.value.trim();
+            if (!playerName) {
+                // Shake effect if empty
+                nameInput.classList.add('animate-pulse', 'border-red-500');
+                setTimeout(() => nameInput.classList.remove('animate-pulse', 'border-red-500'), 500);
+                return;
+            }
+            
+            currentQuestionIndex = 0;
+            correctAnswers = 0;
+            scoreDisplay.textContent = '0';
+            
+            switchScreen('quiz');
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            const currentQ = quizData[currentQuestionIndex];
+            currentQNumDisplay.textContent = currentQuestionIndex + 1;
+            questionText.textContent = currentQ.q;
+            
+            optionsContainer.innerHTML = '';
+            
+            currentQ.opts.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                // Loop color class based on index (0 to 3)
+                const colorClass = `btn-color-${index % 4}`;
+                btn.className = `btn-3d ${colorClass} w-full py-4 text-lg rounded-xl text-left px-6 flex items-center justify-between`;
+                
+                btn.innerHTML = `<span>${opt}</span> <i class="fa-solid fa-chevron-right opacity-50 text-sm"></i>`;
+                btn.onclick = () => handleAnswer(opt, currentQ);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(selectedOption, questionData) {
+            const isCorrect = selectedOption === questionData.ans;
+            
+            if (isCorrect) {
+                correctAnswers++;
+                scoreDisplay.textContent = (correctAnswers * 5); // 5 points per question = max 100
+                
+                // Set Modal for Correct
+                modalContent.style.borderColor = '#10b981'; // emerald-500
+                modalIcon.innerHTML = '<i class="fa-solid fa-face-smile-beam text-emerald-500"></i>';
+                modalTitle.textContent = 'Hore! Tepat!';
+                modalTitle.className = 'text-3xl font-black mb-2 text-emerald-600';
+                modalExp.textContent = questionData.expC;
+            } else {
+                // Set Modal for Wrong
+                modalContent.style.borderColor = '#f43f5e'; // rose-500
+                modalIcon.innerHTML = '<i class="fa-solid fa-face-sad-tear text-rose-500"></i>';
+                modalTitle.textContent = 'Ups, Kurang Tepat!';
+                modalTitle.className = 'text-3xl font-black mb-2 text-rose-600';
+                modalExp.textContent = questionData.expW;
+            }
+            
+            // Show modal
+            modalContent.classList.remove('animate-pop-in');
+            void modalContent.offsetWidth; 
+            modalContent.classList.add('animate-pop-in');
+            modal.classList.remove('hidden');
+        }
+
+        function nextQuestion() {
+            modal.classList.add('hidden');
+            currentQuestionIndex++;
+            
+            if (currentQuestionIndex < quizData.length) {
+                loadQuestion();
+            } else {
+                showResult();
+            }
+        }
+
+        function showResult() {
+            document.getElementById('card-name').textContent = playerName;
+            document.getElementById('card-score').textContent = (correctAnswers * 5);
+            switchScreen('result');
+        }
+
+        function restartQuiz() {
+            nameInput.value = '';
+            switchScreen('start');
+        }
+
+        // HTML2Canvas export function
+        function downloadCard() {
+            const card = document.getElementById('trading-card');
+            
+            // Store original styling to restore later if needed
+            const originalTransform = card.style.transform;
+            card.style.transform = "none"; 
+
+            html2canvas(card, {
+                scale: 2, // High resolution
+                backgroundColor: null, // Transparent background around card
+                logging: false,
+                useCORS: true
+            }).then(canvas => {
+                // Restore original style
+                card.style.transform = originalTransform;
+
+                // Create download link
+                const link = document.createElement('a');
+                const safeName = playerName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                link.download = `Kartu-Kuis-Seni-${safeName}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }).catch(err => {
+                console.error("Gagal membuat kartu:", err);
+                alert("Maaf, terjadi kesalahan saat mengunduh kartu.");
+            });
+        }
+    </script>
+</body>
+</html>
